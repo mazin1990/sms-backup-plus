@@ -107,6 +107,9 @@ public class PrefStore {
 
     static final String PREF_THIRD_PARTY_INTEGRATION  = "third_party_integration";
 
+    static final String PREF_ENABLE_PGP_ENCRYPTION = "enable_apg_encryption";
+    static final String PREF_PGP_SYMMETRIC_KEY = "pgp_symmetric_key";
+
     /** Default value for {@link PrefStore#PREF_MAX_SYNCED_DATE_SMS}. */
     static final long DEFAULT_MAX_SYNCED_DATE = -1;
 
@@ -146,6 +149,9 @@ public class PrefStore {
 
     /** Default value for {@link #PREF_SERVER_PROTOCOL}. */
     static final String DEFAULT_SERVER_PROTOCOL = "+ssl+";
+
+    /** Default value for {@link PrefStore#PREF_ENABLE_PGP_ENCRYPTION}. */
+    static final boolean DEFAULT_ENABLE_PGP_ENCRYPTION = false;
 
     enum AuthMode            { PLAIN, XOAUTH }
     enum CallLogTypes        { EVERYTHING, MISSED, INCOMING, OUTGOING, INCOMING_OUTGOING }
@@ -486,6 +492,20 @@ public class PrefStore {
 
      static String getServerProtocol(Context ctx) {
         return getSharedPreferences(ctx).getString(PREF_SERVER_PROTOCOL, DEFAULT_SERVER_PROTOCOL);
+    }
+
+    static boolean isEnablePgpEncryption(Context ctx) {
+        return getSharedPreferences(ctx).getBoolean(PREF_ENABLE_PGP_ENCRYPTION, DEFAULT_ENABLE_PGP_ENCRYPTION);
+    }
+
+    static boolean isEnablePgpEncryptionSet(Context ctx) {
+        return getSharedPreferences(ctx).contains(PREF_ENABLE_PGP_ENCRYPTION);
+    }
+
+    static void setEnablePgpEncryption(Context ctx, boolean enablePgpEnc) {
+        getSharedPreferences(ctx).edit()
+            .putBoolean(PREF_ENABLE_PGP_ENCRYPTION, enablePgpEnc)
+            .commit();
     }
 
     static boolean isGmail(Context ctx) {

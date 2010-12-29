@@ -133,6 +133,16 @@
   <string name="ui_enable_auto_sync_label">Auto backup</string>
   <string name="ui_enable_auto_sync_desc">Whether to automatically backup new SMS or not.</string>
 
+  <string name="ui_settings_encryption_label">Encryption settings</string>
+  <string name="ui_settings_encryption_desc">Encrypt data with APG.</string>
+
+  <string name="ui_enable_pgp_encryption_label">PGP Encryption</string>
+  <string name="ui_enable_pgp_encryption_desc">Encrypt data with APG.</string>
+
+  <string name="ui_pgp_symmetric_key_label">Encryption key (symmetric)</string>
+  <string name="ui_pgp_symmetric_key_desc">Key to encrypt data with (longer=better).</string>
+  <string name="ui_pgp_symmetric_key_msg">If you loose your key, all your data is lost!</string>
+
   <string name="auto_backup_settings">Auto backup</string>
   <string name="ui_auto_backup_schedule_label">Regular schedule</string>
   <string name="ui_auto_backup_schedule_desc">When to backup SMS</string>

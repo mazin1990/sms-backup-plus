@@ -215,5 +215,25 @@
                 android:persistent="true"/>
             </PreferenceCategory>
         </PreferenceScreen>
+        <PreferenceScreen
+            android:title="@string/ui_settings_encryption_label"
+            android:summary="@string/ui_settings_encryption_desc">
+
+            <CheckBoxPreference android:key="enable_pgp_encryption"
+                android:title="@string/ui_enable_pgp_encryption_label"
+                android:summary="@string/ui_enable_pgp_encryption_desc"
+                android:persistent="true"
+                android:defaultValue="false"/>
+
+            <EditTextPreference android:key="pgp_symmetric_key"
+                android:title="@string/ui_pgp_symmetric_key_label"
+                android:summary="@string/ui_pgp_symmetric_key_desc"
+                android:singleLine="true"
+                android:password="true"
+                android:dialogMessage="@string/ui_pgp_symmetric_key_msg"
+                android:defaultValue=""
+                android:persistent="true"/>
+
+        </PreferenceScreen>
     </PreferenceScreen>
 </PreferenceScreen>

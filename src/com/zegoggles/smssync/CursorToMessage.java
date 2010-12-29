@@ -33,9 +33,12 @@ import java.io.OutputStreamWriter;
 import java.security.MessageDigest;
 
 import android.content.Context;
+import android.content.ServiceConnection;
+import android.content.ComponentName;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
+import android.os.IBinder;
 import android.provider.CallLog;
 import android.provider.ContactsContract;
 import android.provider.Contacts.ContactMethods;
@@ -62,6 +65,8 @@ import com.fsck.k9.mail.store.LocalStore.LocalAttachmentBody;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.james.mime4j.codec.EncoderUtil;
+
+import org.thialfihar.android.apg.IApgService;
 
 import com.zegoggles.smssync.PrefStore.AddressStyle;
 import com.zegoggles.smssync.ContactAccessor.ContactGroup;
@@ -129,7 +134,21 @@ public class CursorToMessage {
         String BACKUP_TIME    = "X-smssync-backup-time";
         String VERSION        = "X-smssync-version";
         String DURATION       = "X-smssync-duration";
+        String PGP_TYPE       = "X-smssync-pgp_type";
     }
+
+    /** Remote service for decrypting and encrypting data */
+    private IApgService apgService = null;
+
+    /** Set apgService accordingly to connection status */
+    private ServiceConnection apgConnection = new ServiceConnection() {
+	    public void onServiceConnected(ComponentName className, IBinder service) {
+		    apgService = IApgService.Stub.asInterface(service);
+	    }
+	    public void onServiceDisconnected(ComponentName className) {
+		    apgService = null;
+	    }
+    };
 
     public CursorToMessage(Context ctx, String userEmail) {
         mContext = ctx;
@@ -230,6 +249,7 @@ public class CursorToMessage {
         msg.setHeader(Headers.SERVICE_CENTER, msgMap.get(SmsConsts.SERVICE_CENTER));
         msg.setHeader(Headers.BACKUP_TIME, new Date().toGMTString());
         msg.setHeader(Headers.VERSION, PrefStore.getVersion(mContext, true));
+        msg.setHeader(Headers.PGP_TYPE, PrefStore.isEnablePgpEncryption(mContext) ? "sym" : "none" );
         msg.setFlag(Flag.SEEN, mMarkAsRead);
 
         return msg;
@@ -700,3 +720,4 @@ public class CursorToMessage {
         }
     }
 }
+
