@@ -107,7 +107,7 @@ public class PrefStore {
 
     static final String PREF_THIRD_PARTY_INTEGRATION  = "third_party_integration";
 
-    static final String PREF_ENABLE_PGP_ENCRYPTION = "enable_apg_encryption";
+    static final String PREF_ENABLE_PGP_ENCRYPTION = "enable_pgp_encryption";
     static final String PREF_PGP_SYMMETRIC_KEY = "pgp_symmetric_key";
 
     static final String PREF_ENABLE_DEBUG_MODE = "enable_debug_mode";
