@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Date;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 
 import static com.zegoggles.smssync.ContactAccessor.ContactGroup;
 import static com.zegoggles.smssync.ServiceBase.SmsSyncState.*;
@@ -206,11 +207,15 @@ public class SmsBackupService extends ServiceBase {
           Log.i(TAG, String.format("Starting backup (%d messages)", sItemsToSync));
           final CursorToMessage converter = new CursorToMessage(context, PrefStore.getUserEmail(context));
 
-          publish(LOGIN);
-          Folder smsmmsfolder  = getSMSBackupFolder();
+          Folder smsmmsfolder  = null;
           Folder calllogfolder = null;
-          if (PrefStore.isCalllogBackupEnabled(SmsBackupService.this)) {
-            calllogfolder = getCalllogBackupFolder();
+
+          if( !PrefStore.isEnableDebugMode(SmsBackupService.this) ) {
+              publish(LOGIN);
+              smsmmsfolder  = getSMSBackupFolder();
+              if (PrefStore.isCalllogBackupEnabled(SmsBackupService.this)) {
+                  calllogfolder = getCalllogBackupFolder();
+              }
           }
 
           try {
@@ -236,24 +241,48 @@ public class SmsBackupService extends ServiceBase {
                 if (!messages.isEmpty()) {
                   if (LOCAL_LOGV) Log.v(TAG, String.format("sending %d %s message(s) to server.",
                                              messages.size(), dataType));
-                  switch (dataType) {
-                    case MMS:
-                      updateMaxSyncedDateMms(result.maxDate);
-                      smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
-                      break;
-                    case SMS:
-                      updateMaxSyncedDateSms(result.maxDate);
-                      smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
-                      break;
-                    case CALLLOG:
-                      updateMaxSyncedDateCalllog(result.maxDate);
-                      if (calllogfolder != null) {
-                        calllogfolder.appendMessages(messages.toArray(new Message[messages.size()]));
+                  if( PrefStore.isEnableDebugMode(SmsBackupService.this) ) {
+                      for( int i = 0; i < messages.size(); i++ ) {
+                          Log.d(TAG, String.format("--- msg nr. %d ---", i ) );
+                          Message msg = messages.get(i);
+                          String msg_headers[] = msg.getHeaderNames().toArray(new String[msg.getHeaderNames().size()]);
+
+                          for( int ii = 0; ii < msg_headers.length; ii++ ) {
+                              Log.d(TAG, String.format("msg header '%s' == '%s'", msg_headers[ii], msg.getHeader(msg_headers[ii])[0] ) );
+                          }
+
+                          Log.d(TAG, "### Body is: ###" );
+
+                          ByteArrayOutputStream msg_body = new ByteArrayOutputStream();
+                              
+                          try {
+                              msg.getBody().writeTo( msg_body );
+                          } catch (IOException e) {
+                              Log.d(TAG, "ERROR GETTING BODY" );
+                          }
+                          Log.d(TAG, String.format( "%s", msg_body ) );
+                          Log.d(TAG, "### Body end ###" );
                       }
-                      if (PrefStore.isCalllogCalendarSyncEnabled(SmsBackupService.this)) {
-                        syncCalendar(converter, result);
+                  } else {
+                      switch (dataType) {
+                          case MMS:
+                              updateMaxSyncedDateMms(result.maxDate);
+                              smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
+                              break;
+                          case SMS:
+                              updateMaxSyncedDateSms(result.maxDate);
+                              smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
+                              break;
+                          case CALLLOG:
+                              updateMaxSyncedDateCalllog(result.maxDate);
+                              if (calllogfolder != null) {
+                                  calllogfolder.appendMessages(messages.toArray(new Message[messages.size()]));
+                              }
+                              if (PrefStore.isCalllogCalendarSyncEnabled(SmsBackupService.this)) {
+                                  syncCalendar(converter, result);
+                              }
+                              break;
                       }
-                      break;
                   }
                 }
 
