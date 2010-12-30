@@ -51,6 +51,7 @@ public class SmsRestoreService extends ServiceBase {
           }
       };
 
+    private EncryptionService mEnc;
 
     public static void cancel() {
         sCanceled = true;
@@ -198,6 +199,18 @@ public class SmsRestoreService extends ServiceBase {
                 //The current header set was introduced in version 1.2.00
                 final String dataType = getHeader(message, Headers.DATATYPE);
 
+                //if we get a encrypted msg, initialize our encodingService
+                final String pgp_header = getHeader(message, Headers.PGP_TYPE);
+                Log.d( TAG, "pgp header is: "+pgp_header);
+
+                boolean body_is_encrypted = false;
+                if( pgp_header != null && pgp_header != "none" ) {
+                    body_is_encrypted = true;
+                    if( mEnc == null ) {
+                        mEnc = new EncryptionService(getBaseContext());
+                    }
+                }
+
                 //only restore sms for now. first check for current headers
                 if (null != dataType && !dataType.equalsIgnoreCase(DataType.SMS.toString())) {
                     if (LOCAL_LOGV) Log.d(TAG, "ignoring entry because no sms: " + dataType);
@@ -211,6 +224,14 @@ public class SmsRestoreService extends ServiceBase {
                 if (type != null && (type == SmsConsts.MESSAGE_TYPE_INBOX ||
                                      type == SmsConsts.MESSAGE_TYPE_SENT) &&
                                      !smsExists(values)) {
+
+                    // decrypt encrypted body before restoring
+                    if( body_is_encrypted ) {
+                        String body = values.getAsString(SmsConsts.BODY);
+                        body = mEnc.decrypt( body, PrefStore.getPgpSymmetricKey(getBaseContext()) );
+                        values.put(SmsConsts.BODY, body);
+                    }
+
                     Uri uri = getContentResolver().insert(SMS_PROVIDER, values);
                     if (uri != null) {
                       insertedIds.add(uri.getLastPathSegment());
@@ -305,7 +326,7 @@ public class SmsRestoreService extends ServiceBase {
         }
 
         String body = IOUtils.toString(is);
-
+        
         ContentValues values = new ContentValues();
         values.put(SmsConsts.BODY, body);
         values.put(SmsConsts.ADDRESS, getHeader(message, ADDRESS));
