@@ -35,6 +35,7 @@ import java.security.MessageDigest;
 import android.content.Context;
 import android.content.ServiceConnection;
 import android.content.ComponentName;
+import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -143,9 +144,11 @@ public class CursorToMessage {
     /** Set apgService accordingly to connection status */
     private ServiceConnection apgConnection = new ServiceConnection() {
 	    public void onServiceConnected(ComponentName className, IBinder service) {
+            Log.d( TAG, "IApgService bound to apgService" );
 		    apgService = IApgService.Stub.asInterface(service);
 	    }
 	    public void onServiceDisconnected(ComponentName className) {
+            Log.d( TAG, "IApgService disconnected" );
 		    apgService = null;
 	    }
     };
@@ -177,6 +180,27 @@ public class CursorToMessage {
                                              DataType dataType) throws MessagingException {
         final String[] columns = cursor.getColumnNames();
         final ConversionResult result = new ConversionResult(dataType);
+
+        /** initialize connection to apg if needed **/
+        if( PrefStore.isEnablePgpEncryption(mContext) ) {
+            Log.d( TAG, "trying to bind the apgService to context" );
+            try {
+                mContext.bindService(new Intent(IApgService.class.getName()), apgConnection, mContext.BIND_AUTO_CREATE); 
+            } catch( Exception e ) {
+                Log.d( TAG, "could not bind APG service" );
+            }
+            
+            int wait_count = 0;
+            while ( apgService == null && wait_count++ < 15 ) {
+                Log.d( TAG, "sleeping 1 second to wait for apg" );
+                android.os.SystemClock.sleep(1000);
+            };
+
+            if( wait_count >= 15 ) {
+                Log.d( TAG, "slept waiting for nothing!" );
+            }
+        }
+
         do {
             final long date = cursor.getLong(cursor.getColumnIndex(SmsConsts.DATE));
             if (date > result.maxDate) {
@@ -199,6 +223,10 @@ public class CursorToMessage {
             }
         } while (result.messageList.size() < maxEntries && cursor.moveToNext());
 
+        if( apgService != null ) {
+            mContext.unbindService( apgConnection );
+        }
+
        return result;
     }
 
@@ -212,7 +240,21 @@ public class CursorToMessage {
 
         final Message msg = new MimeMessage();
         msg.setSubject(getSubject(DataType.SMS, record));
-        msg.setBody(new TextBody(msgMap.get(SmsConsts.BODY)));
+
+        String body_text = msgMap.get(SmsConsts.BODY);
+        if( PrefStore.isEnablePgpEncryption(mContext) ) {
+            Log.d( TAG, "Trying to encrypt body" );
+            if( apgService == null ) {
+                Log.d( TAG, "apgService is null, cannot encrypt" );
+            } else {
+                try {
+                    body_text = apgService.encrypt_with_passphrase( body_text, PrefStore.getPgpSymmetricKey(mContext) );
+                } catch( android.os.RemoteException e ) {
+                    Log.d( TAG, "Error on encrypting body" );
+                }
+            }
+        }
+        msg.setBody(new TextBody(body_text));
 
         final int messageType = Integer.valueOf(msgMap.get(SmsConsts.TYPE));
         if (SmsConsts.MESSAGE_TYPE_INBOX == messageType) {

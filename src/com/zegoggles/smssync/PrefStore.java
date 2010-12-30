@@ -515,6 +515,10 @@ public class PrefStore {
             .commit();
     }
 
+    static String getPgpSymmetricKey(Context ctx) {
+        return getSharedPreferences(ctx).getString(PREF_PGP_SYMMETRIC_KEY, null);
+    }
+
     static boolean isEnableDebugMode(Context ctx) {
         return getSharedPreferences(ctx).getBoolean(PREF_ENABLE_DEBUG_MODE, DEFAULT_ENABLE_DEBUG_MODE);
     }

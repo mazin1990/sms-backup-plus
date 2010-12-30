@@ -30,6 +30,7 @@ import com.fsck.k9.mail.Folder;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.AuthenticationFailedException;
+import com.fsck.k9.mail.internet.TextBody;
 import com.zegoggles.smssync.CursorToMessage.ConversionResult;
 import com.zegoggles.smssync.CursorToMessage.DataType;
 import com.zegoggles.smssync.ServiceBase.SmsSyncState;
@@ -40,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Date;
 import java.io.IOException;
-import java.io.ByteArrayOutputStream;
 
 import static com.zegoggles.smssync.ContactAccessor.ContactGroup;
 import static com.zegoggles.smssync.ServiceBase.SmsSyncState.*;
@@ -248,19 +248,18 @@ public class SmsBackupService extends ServiceBase {
                           String msg_headers[] = msg.getHeaderNames().toArray(new String[msg.getHeaderNames().size()]);
 
                           for( int ii = 0; ii < msg_headers.length; ii++ ) {
-                              Log.d(TAG, String.format("msg header '%s' == '%s'", msg_headers[ii], msg.getHeader(msg_headers[ii])[0] ) );
+                              Log.d(TAG, String.format("msg header '%s':", msg_headers[ii], msg.getHeader(msg_headers[ii])[0] ) );
+                              String[] msg_header_vals = msg.getHeader(msg_headers[ii]);
+                              for( int iii = 0; iii < msg_header_vals.length; iii++ ) {
+                                  Log.d(TAG, String.format("  %s", msg_header_vals[iii] ) );
+                              }
                           }
 
                           Log.d(TAG, "### Body is: ###" );
 
-                          ByteArrayOutputStream msg_body = new ByteArrayOutputStream();
+                          TextBody msg_body = (TextBody) msg.getBody();
                               
-                          try {
-                              msg.getBody().writeTo( msg_body );
-                          } catch (IOException e) {
-                              Log.d(TAG, "ERROR GETTING BODY" );
-                          }
-                          Log.d(TAG, String.format( "%s", msg_body ) );
+                          Log.d(TAG, String.format( "%s", msg_body.getText() ) );
                           Log.d(TAG, "### Body end ###" );
                       }
                   } else {
