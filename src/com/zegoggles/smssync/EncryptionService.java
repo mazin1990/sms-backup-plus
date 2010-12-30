@@ -32,6 +32,7 @@ public class EncryptionService {
     private final Context mContext;
 
     public EncryptionService( Context ctx ) {
+        Log.d( TAG, "EncryptionService created" );
         mContext = ctx;
     }
 
@@ -64,6 +65,17 @@ public class EncryptionService {
 
         return true;
     }
+    
+    private boolean initialize() {
+        if( apgService == null ) {
+            if( !connect() ) {
+                Log.d( TAG, "connection to apg service failed" );
+                return false;
+            }
+        }
+        return true;
+    }
+
 
     public void disconnect() {
         Log.d( TAG, "disconnecting apgService" );
@@ -75,12 +87,9 @@ public class EncryptionService {
 
     /** encrypt a string with a passphrase */
     public String encrypt( String msg, String pass ) {
-        if( apgService == null ) {
-            if( !connect() ) {
-                Log.d( TAG, "connection to apg service failed" );
-                return null;
-            }
-        }
+        Log.d( TAG, "encrypting string" );
+        if( !initialize() )
+            return null;
 
         String encrypted_msg = null;
         try {
@@ -90,6 +99,25 @@ public class EncryptionService {
             return null;
         }
 
+        Log.d( TAG, "encrypting done" );
         return encrypted_msg;
+    }
+
+    public String decrypt( String msg, String pass ) {
+        Log.d( TAG, "decrypting string" );
+        if( !initialize() )
+            return null;
+
+        String decrypted_msg = null;
+        try {
+           decrypted_msg = apgService.decrypt_with_passphrase( msg, pass );
+        } catch( android.os.RemoteException e ) {
+            Log.d( TAG, "Error on decrypting body" );
+            return null;
+        }
+
+        Log.d( TAG, "decrypting done" );
+        return decrypted_msg;
+
     }
 }
