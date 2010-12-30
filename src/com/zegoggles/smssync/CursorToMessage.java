@@ -33,13 +33,11 @@ import java.io.OutputStreamWriter;
 import java.security.MessageDigest;
 
 import android.content.Context;
-import android.content.ServiceConnection;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
-import android.os.IBinder;
 import android.provider.CallLog;
 import android.provider.ContactsContract;
 import android.provider.Contacts.ContactMethods;
@@ -66,8 +64,6 @@ import com.fsck.k9.mail.store.LocalStore.LocalAttachmentBody;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.james.mime4j.codec.EncoderUtil;
-
-import org.thialfihar.android.apg.IApgService;
 
 import com.zegoggles.smssync.PrefStore.AddressStyle;
 import com.zegoggles.smssync.ContactAccessor.ContactGroup;
@@ -117,6 +113,8 @@ public class CursorToMessage {
     private final boolean mMarkAsRead;
     private final boolean mPrefix;
 
+    private EncryptionService mEnc;
+
     /** used for whitelisting specific contacts */
     private final ContactAccessor.GroupContactIds allowedIds;
 
@@ -137,21 +135,6 @@ public class CursorToMessage {
         String DURATION       = "X-smssync-duration";
         String PGP_TYPE       = "X-smssync-pgp_type";
     }
-
-    /** Remote service for decrypting and encrypting data */
-    private IApgService apgService = null;
-
-    /** Set apgService accordingly to connection status */
-    private ServiceConnection apgConnection = new ServiceConnection() {
-	    public void onServiceConnected(ComponentName className, IBinder service) {
-            Log.d( TAG, "IApgService bound to apgService" );
-		    apgService = IApgService.Stub.asInterface(service);
-	    }
-	    public void onServiceDisconnected(ComponentName className) {
-            Log.d( TAG, "IApgService disconnected" );
-		    apgService = null;
-	    }
-    };
 
     public CursorToMessage(Context ctx, String userEmail) {
         mContext = ctx;
@@ -182,23 +165,8 @@ public class CursorToMessage {
         final ConversionResult result = new ConversionResult(dataType);
 
         /** initialize connection to apg if needed **/
-        if( PrefStore.isEnablePgpEncryption(mContext) ) {
-            Log.d( TAG, "trying to bind the apgService to context" );
-            try {
-                mContext.bindService(new Intent(IApgService.class.getName()), apgConnection, mContext.BIND_AUTO_CREATE); 
-            } catch( Exception e ) {
-                Log.d( TAG, "could not bind APG service" );
-            }
-            
-            int wait_count = 0;
-            while ( apgService == null && wait_count++ < 15 ) {
-                Log.d( TAG, "sleeping 1 second to wait for apg" );
-                android.os.SystemClock.sleep(1000);
-            };
-
-            if( wait_count >= 15 ) {
-                Log.d( TAG, "slept waiting for nothing!" );
-            }
+        if( PrefStore.isEnablePgpEncryption(mContext) && mEnc == null ) {
+            mEnc = new EncryptionService(mContext);
         }
 
         do {
@@ -223,8 +191,9 @@ public class CursorToMessage {
             }
         } while (result.messageList.size() < maxEntries && cursor.moveToNext());
 
-        if( apgService != null ) {
-            mContext.unbindService( apgConnection );
+        /** disconnect to save ressources */
+        if( mEnc != null ) {
+            mEnc.disconnect();
         }
 
        return result;
@@ -244,15 +213,7 @@ public class CursorToMessage {
         String body_text = msgMap.get(SmsConsts.BODY);
         if( PrefStore.isEnablePgpEncryption(mContext) ) {
             Log.d( TAG, "Trying to encrypt body" );
-            if( apgService == null ) {
-                Log.d( TAG, "apgService is null, cannot encrypt" );
-            } else {
-                try {
-                    body_text = apgService.encrypt_with_passphrase( body_text, PrefStore.getPgpSymmetricKey(mContext) );
-                } catch( android.os.RemoteException e ) {
-                    Log.d( TAG, "Error on encrypting body" );
-                }
-            }
+            body_text = mEnc.encrypt( body_text, PrefStore.getPgpSymmetricKey(mContext) );
         }
         msg.setBody(new TextBody(body_text));
 
