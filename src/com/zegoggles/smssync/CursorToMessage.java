@@ -65,6 +65,8 @@ import com.fsck.k9.mail.store.LocalStore.LocalAttachmentBody;
 import org.apache.commons.io.IOUtils;
 import org.apache.james.mime4j.codec.EncoderUtil;
 
+import org.thialfihar.android.apg.utils.ApgCon;
+
 import com.zegoggles.smssync.PrefStore.AddressStyle;
 import com.zegoggles.smssync.ContactAccessor.ContactGroup;
 import static com.zegoggles.smssync.App.*;
@@ -113,7 +115,7 @@ public class CursorToMessage {
     private final boolean mMarkAsRead;
     private final boolean mPrefix;
 
-    private EncryptionService mEnc;
+    private ApgCon mEnc;
 
     /** used for whitelisting specific contacts */
     private final ContactAccessor.GroupContactIds allowedIds;
@@ -166,7 +168,7 @@ public class CursorToMessage {
 
         /** initialize connection to apg if needed **/
         if( PrefStore.isEnablePgpEncryption(mContext) && mEnc == null ) {
-            mEnc = new EncryptionService(mContext);
+            mEnc = new ApgCon(mContext);
         }
 
         do {
@@ -193,7 +195,7 @@ public class CursorToMessage {
 
         /** disconnect to save ressources */
         if( mEnc != null ) {
-            mEnc.disconnect();
+            //mEnc.disconnect();
         }
 
        return result;
@@ -213,7 +215,12 @@ public class CursorToMessage {
         String body_text = msgMap.get(SmsConsts.BODY);
         if( PrefStore.isEnablePgpEncryption(mContext) ) {
             Log.d( TAG, "Trying to encrypt body" );
-            body_text = mEnc.encrypt( body_text, PrefStore.getPgpSymmetricKey(mContext) );
+            Map<ApgCon.retKey,Object> return_map = new HashMap();
+            mEnc.call( "encrypt_with_passphrase", return_map, body_text, PrefStore.getPgpSymmetricKey(mContext) );
+            if( return_map.containsKey(ApgCon.retKey.ERROR) ) {
+                Log.d( TAG, "encryption returned error: " + (String) return_map.get(ApgCon.retKey.ERROR_DESC) );
+            }
+            body_text = (String) return_map.get(ApgCon.retKey.RESULT);
         }
         msg.setBody(new TextBody(body_text));
 

@@ -16,6 +16,7 @@ import org.apache.commons.io.IOUtils;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.io.File;
 import java.io.FilenameFilter;
@@ -23,6 +24,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.NoSuchMethodException;
 import java.lang.ClassNotFoundException;
+
+import org.thialfihar.android.apg.utils.ApgCon;
 
 import static com.zegoggles.smssync.CursorToMessage.Headers.*;
 import static com.zegoggles.smssync.ServiceBase.SmsSyncState.*;
@@ -51,7 +54,7 @@ public class SmsRestoreService extends ServiceBase {
           }
       };
 
-    private EncryptionService mEnc;
+    private ApgCon mEnc;
 
     public static void cancel() {
         sCanceled = true;
@@ -207,7 +210,7 @@ public class SmsRestoreService extends ServiceBase {
                 if( pgp_header != null && pgp_header != "none" ) {
                     body_is_encrypted = true;
                     if( mEnc == null ) {
-                        mEnc = new EncryptionService(getBaseContext());
+                        mEnc = new ApgCon(getBaseContext());
                     }
                 }
 
@@ -228,8 +231,9 @@ public class SmsRestoreService extends ServiceBase {
                     // decrypt encrypted body before restoring
                     if( body_is_encrypted ) {
                         String body = values.getAsString(SmsConsts.BODY);
-                        body = mEnc.decrypt( body, PrefStore.getPgpSymmetricKey(getBaseContext()) );
-                        values.put(SmsConsts.BODY, body);
+                        Map<ApgCon.retKey,Object> return_map = new HashMap();
+                        mEnc.call( "decrypt_with_passphrase", return_map, body, PrefStore.getPgpSymmetricKey(getBaseContext()) );
+                        values.put(SmsConsts.BODY, (String) return_map.get(ApgCon.retKey.RESULT) );
                     }
 
                     Uri uri = getContentResolver().insert(SMS_PROVIDER, values);
