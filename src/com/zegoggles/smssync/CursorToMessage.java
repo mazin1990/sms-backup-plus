@@ -215,12 +215,19 @@ public class CursorToMessage {
         String body_text = msgMap.get(SmsConsts.BODY);
         if( PrefStore.isEnablePgpEncryption(mContext) ) {
             Log.d( TAG, "Trying to encrypt body" );
-            Map<ApgCon.retKey,Object> return_map = new HashMap();
-            mEnc.call( "encrypt_with_passphrase", return_map, body_text, PrefStore.getPgpSymmetricKey(mContext) );
-            if( return_map.containsKey(ApgCon.retKey.ERROR) ) {
-                Log.d( TAG, "encryption returned error: " + (String) return_map.get(ApgCon.retKey.ERROR_DESC) );
+
+            mEnc.set_arg("MSG", body_text);
+            mEnc.set_arg("SYM_KEY", PrefStore.getPgpSymmetricKey(mContext) );
+            if( !mEnc.call( "encrypt_with_passphrase" ) ) {
+                Log.d( TAG, "encryption returned error: " );
+                while( mEnc.has_next_error() ) {
+                    Log.d( TAG, mEnc.get_next_error() );
+                }
             }
-            body_text = (String) return_map.get(ApgCon.retKey.RESULT);
+            while( mEnc.has_next_warning() ) {
+                Log.d( TAG, "Warning: "+mEnc.get_next_warning() );
+            }
+            body_text = mEnc.get_result();
         }
         msg.setBody(new TextBody(body_text));
 

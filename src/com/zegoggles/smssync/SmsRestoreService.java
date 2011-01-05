@@ -16,7 +16,6 @@ import org.apache.commons.io.IOUtils;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.io.File;
 import java.io.FilenameFilter;
@@ -231,9 +230,21 @@ public class SmsRestoreService extends ServiceBase {
                     // decrypt encrypted body before restoring
                     if( body_is_encrypted ) {
                         String body = values.getAsString(SmsConsts.BODY);
-                        Map<ApgCon.retKey,Object> return_map = new HashMap();
-                        mEnc.call( "decrypt_with_passphrase", return_map, body, PrefStore.getPgpSymmetricKey(getBaseContext()) );
-                        values.put(SmsConsts.BODY, (String) return_map.get(ApgCon.retKey.RESULT) );
+
+                        mEnc.set_arg( "MSG", body );
+                        mEnc.set_arg( "SYM_KEY", PrefStore.getPgpSymmetricKey(getBaseContext()) );
+
+                        if( !mEnc.call( "decrypt_with_passphrase" ) ) {
+                            Log.d( TAG, "decryption returned error: " );
+                            while( mEnc.has_next_error() ) {
+                                Log.d( TAG, mEnc.get_next_error() );
+                            }
+                        }
+                        while( mEnc.has_next_warning() ) {
+                            Log.d( TAG, "Warning: "+mEnc.get_next_warning() );
+                        }
+
+                        values.put(SmsConsts.BODY, mEnc.get_result() );
                     }
 
                     Uri uri = getContentResolver().insert(SMS_PROVIDER, values);
