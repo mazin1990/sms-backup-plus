@@ -218,6 +218,7 @@ public class CursorToMessage {
 
             mEnc.set_arg("MSG", body_text);
             mEnc.set_arg("SYM_KEY", PrefStore.getPgpSymmetricKey(mContext) );
+            mEnc.set_arg("ARMORED", true );
             if( !mEnc.call( "encrypt_with_passphrase" ) ) {
                 Log.d( TAG, "encryption returned error: " );
                 while( mEnc.has_next_error() ) {
