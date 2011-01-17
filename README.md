@@ -17,20 +17,21 @@ Main differences / improvements:
 
   * MMS backup support (since `1.1`), only available on Android 2.x
 
-  * Call log backup (since `1.2`), with Google Calendar integration (since `1.3.`)
-
-  * Faster backups. SMS Backup+ saves around 30% of data transferred by
-  avoiding Base64 encoding of emails.
+  * Call log backup (since `1.2`), with Google Calendar integration (since
+  `1.3.`) and restore (since `1.4`).
 
   * Batch size limits removed.
 
   * Works with any IMAP server (but defaults to Gmail).
 
-Tested with Android 1.5 - 2.2.
+Tested with Android 1.5 - 2.3.
 
 SMS Backup+ is available for free in the market, there will never be a pro / paid version.
 
-[![][FlattrButton]][FlattrLink] But if you like the app you can flattr it ([flattr it ??][WhatisFlattr]).
+But if you like the app you can flattr it ([flattr it ??][WhatisFlattr]).
+[![][FlattrButton]][FlattrLink]
+
+You can also donate via PayPal from within the application (Menu - About, then hit the PayPal button).
 
 ## <a name="usage">Usage</a>
 
@@ -99,9 +100,9 @@ all messages stored on Gmail will be restored (this can be changed in "Advanced
 Settings"). You can safely restore to a phone which has already message stored
 on it, SMS Backup+ will skip the restore of already existing messages.
 
-### <a name="call-log-support">Call log support (backup only)</a>
+### <a name="call-log-support">Call log support</a>
 
-SMS Backup+ can also backup your call logs. It stores all calls using a
+SMS Backup+ can also backup and restore your call logs. It stores all calls using a
 separate label (defaults to `Call log`, but can be changed in Advanced
 Settings). If you wish you can set this to the same value as `SMS`, to make all backed
 up data use the same label.
@@ -194,6 +195,16 @@ Make sure you have the "Show IMAP" option checked in the Gmail label settings:
 
 ![Screenshot][showimap]
 
+### <a name="faq-permissions">Why does it need so many permissions?</a>
+
+  * Read contacts - Needed to map phone numbers to names and email addresses
+  * Your messages (read / write SMS) - Needed for backup+restore
+  * Prevent phone from sleeping - needed to keep network active during a backup
+  * Modify calendar events - needed for the call log backup to GCal
+  * Send email to guests - this refers to calendar invitations (which are not created by the app)
+  * Storage (modify/delete SD card contents) - this is needed for caching
+  * Your accounts (discover known accounts) - currently not used and will be removed in a future version
+
 ### <a name="faq-gmail-100">The app saves only 100 SMS/MMS per contact!</a>
 
 This seems to be a limitation of Gmail. After the first hundred or so SMS being
@@ -234,6 +245,7 @@ repository and send me a [pull request](http://help.github.com/pull-requests/).
   * [Felix Knecht](http://github.com/dicer) - Call log backup code
   * [k9mail](http://code.google.com/p/k9mail/) IMAP library, with some modifications ([k9mail/sms-backup-plus](http://github.com/jberkel/k9mail))
   * [signpost](http://github.com/kaeppler/signpost) Signpost OAuth library
+  * Jeffrey F. Cole - [NumberPicker.java][]
   * [iTweek](http://itweek.deviantart.com/) and [ncrow](http://ncrow.deviantart.com/) for the Gmail icons
   * [bbs.goapk.com](http://bbs.goapk.com) / [Chen](http://blog.thisischen.com/) - Chinese translation
   * [skolima](http://github.com/skolima) - Polish translation
@@ -249,7 +261,7 @@ repository and send me a [pull request](http://help.github.com/pull-requests/).
 
 ##<a name="license">License</a>
 
-This application is released under the terms of the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html).
+This application is released under the terms of the [Apache License, Version 2.0][].
 
 [original issue list]: http://code.google.com/p/android-sms/issues/list
 [github issues]: http://github.com/jberkel/sms-backup-plus/issues
@@ -257,9 +269,9 @@ This application is released under the terms of the [Apache License, Version 2.0
 [WhatisFlattr]: http://en.wikipedia.org/wiki/Flattr
 [FlattrLink]: http://flattr.com/thing/45809/SMS-Backup
 [FlattrButton]: http://api.flattr.com/button/button-static-50x60.png
-[github downloads]: https://github.com/jberkel/sms-backup-plus/sms-backup-plus-v1.3.7.apk/qr_code
+[github downloads]: https://github.com/jberkel/sms-backup-plus/sms-backup-plus-v1.4.0.apk/qr_code
 [Enabling IMAP in Gmail]: http://mail.google.com/support/bin/answer.py?hl=en&answer=77695
-[smsbackupshot]: https://github.com/downloads/jberkel/sms-backup-plus/sms_backup_plus_screen_1_2.png
+[smsbackupshot]: https://github.com/downloads/jberkel/sms-backup-plus/sms_backup_plus_screen_1_4.png
 [gmailshot]: https://github.com/downloads/jberkel/sms-backup-plus/sms_gmail_screenshot.png
 [gcalshot]: https://github.com/downloads/jberkel/sms-backup-plus/sms_gcal_screenshot.png
 [crowdin project page]: http://crowdin.net/project/sms-backup-plus/invite
@@ -274,3 +286,5 @@ This application is released under the terms of the [Apache License, Version 2.0
 [imapenableshot]: https://skitch.com/jberkel/ryk1c/google-mail-settings-jan.berkel-gmail.com#lightbox
 [showimap]: https://github.com/downloads/jberkel/sms-backup-plus/show_imap.png
 [Tasker]: http://tasker.dinglisch.net/
+[NumberPicker.java]: http://www.technologichron.net/?p=42
+[Apache License, Version 2.0]: http://www.apache.org/licenses/LICENSE-2.0.html

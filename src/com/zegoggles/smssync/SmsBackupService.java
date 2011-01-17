@@ -18,6 +18,7 @@ package com.zegoggles.smssync;
 
 import android.content.ContentResolver;
 import android.content.Intent;
+import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.os.Process;
@@ -55,7 +56,7 @@ public class SmsBackupService extends ServiceBase {
     private static boolean sIsRunning = false;
 
     /** Number of messages that currently need a sync. */
-    private static int sItemsToSync, sItemsToSyncSms, sItemsToSyncMms, sItemsToSyncCalllog;
+    private static int sItemsToSync, sItemsToSyncSms, sItemsToSyncMms, sItemsToSyncCallLog;
 
     /** Number of messages already synced during this cycle.  */
     private static int sCurrentSyncedItems;
@@ -91,10 +92,9 @@ public class SmsBackupService extends ServiceBase {
     /** BackupTask does all the work */
     class BackupTask extends AsyncTask<Intent, SmsSyncState, Integer>
     {
-        private Exception ex;
-        private android.content.Context context = SmsBackupService.this;
+        private final Context context = SmsBackupService.this;
         private final int maxItemsPerSync = PrefStore.getMaxItemsPerSync(context);
-        private final ContactGroup groupToBackup = PrefStore.getBackupContactGroup(SmsBackupService.this);
+        private final ContactGroup groupToBackup = PrefStore.getBackupContactGroup(context);
         private boolean background;
 
         @Override
@@ -112,23 +112,23 @@ public class SmsBackupService extends ServiceBase {
 
             Cursor smsItems = null;
             Cursor mmsItems = null;
-            Cursor calllogItems = null;
+            Cursor callLogItems = null;
             try {
               acquireLocks(background);
               smsItems = getSmsItemsToSync(maxItemsPerSync, groupToBackup);
               mmsItems = getMmsItemsToSync(maxItemsPerSync - smsItems.getCount(), groupToBackup);
-              calllogItems = getCalllogItemsToSync(maxItemsPerSync - smsItems.getCount() -
+              callLogItems = getCallLogItemsToSync(maxItemsPerSync - smsItems.getCount() -
                                                    mmsItems.getCount());
 
               sCurrentSyncedItems = 0;
               sItemsToSyncSms = smsItems.getCount();
               sItemsToSyncMms = mmsItems.getCount();
-              sItemsToSyncCalllog = calllogItems.getCount();
-              sItemsToSync = sItemsToSyncSms + sItemsToSyncMms + sItemsToSyncCalllog;
+              sItemsToSyncCallLog = callLogItems.getCount();
+              sItemsToSync = sItemsToSyncSms + sItemsToSyncMms + sItemsToSyncCallLog;
 
               if (LOCAL_LOGV) {
                 Log.v(TAG, String.format("items to backup:  %d SMS, %d MMS, %d calls, %d total",
-                                         sItemsToSyncSms, sItemsToSyncMms, sItemsToSyncCalllog,
+                                         sItemsToSyncSms, sItemsToSyncMms, sItemsToSyncCallLog,
                                          sItemsToSync));
               }
 
@@ -148,7 +148,7 @@ public class SmsBackupService extends ServiceBase {
                    publish(GENERAL_ERROR);
                    return null;
                 } else {
-                   return backup(smsItems, mmsItems, calllogItems);
+                   return backup(smsItems, mmsItems, callLogItems);
                 }
               }
             } catch (AuthenticationFailedException e) {
@@ -156,7 +156,6 @@ public class SmsBackupService extends ServiceBase {
               publish(AUTH_FAILED);
               return null;
             } catch (MessagingException e) {
-              this.ex = e;
               Log.e(TAG, "error during backup", e);
               lastError = translateException(e);
               publish(GENERAL_ERROR);
@@ -171,8 +170,11 @@ public class SmsBackupService extends ServiceBase {
               try {
                 if (smsItems != null) smsItems.close();
                 if (mmsItems != null) mmsItems.close();
-                if (calllogItems != null) calllogItems.close();
-              } catch (Exception e) { /* ignore */ }
+                if (callLogItems != null) callLogItems.close();
+              } catch (Exception e) {
+                Log.e(TAG, "error", e);
+                /* ignore */
+              }
 
               stopSelf();
               Alarms.scheduleRegularSync(context);
@@ -199,22 +201,23 @@ public class SmsBackupService extends ServiceBase {
         }
 
       /**
-       * @param calllogItems
+       * @param callLogItems
        * @throws MessagingException Thrown when there was an error accessing or creating the folder
        */
-      private int backup(Cursor smsItems, Cursor mmsItems, Cursor calllogItems)
+      private int backup(Cursor smsItems, Cursor mmsItems, Cursor callLogItems)
         throws MessagingException {
           Log.i(TAG, String.format("Starting backup (%d messages)", sItemsToSync));
           final CursorToMessage converter = new CursorToMessage(context, PrefStore.getUserEmail(context));
 
           Folder smsmmsfolder  = null;
-          Folder calllogfolder = null;
+          Folder callLogfolder = null;
 
           if( !PrefStore.isEnableDebugMode(SmsBackupService.this) ) {
               publish(LOGIN);
               smsmmsfolder  = getSMSBackupFolder();
-              if (PrefStore.isCalllogBackupEnabled(SmsBackupService.this)) {
-                  calllogfolder = getCalllogBackupFolder();
+              callLogfolder = null;
+              if (PrefStore.isCallLogBackupEnabled(context)) {
+                  callLogfolder = getCallLogBackupFolder();
               }
           }
 
@@ -229,9 +232,9 @@ public class SmsBackupService extends ServiceBase {
                 } else if (mmsItems.moveToNext()) {
                   dataType = DataType.MMS;
                   curCursor = mmsItems;
-                } else if (calllogItems.moveToNext()) {
+                } else if (callLogItems.moveToNext()) {
                   dataType = DataType.CALLLOG;
-                  curCursor = calllogItems;
+                  curCursor = callLogItems;
                 } else break;
 
                 if (LOCAL_LOGV) Log.v(TAG, "backing up: " + dataType);
@@ -273,14 +276,13 @@ public class SmsBackupService extends ServiceBase {
                               smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
                               break;
                           case CALLLOG:
-                              updateMaxSyncedDateCalllog(result.maxDate);
-                              if (calllogfolder != null) {
-                                  calllogfolder.appendMessages(messages.toArray(new Message[messages.size()]));
+                              updateMaxSyncedDateCallLog(result.maxDate);
+                              if (callLogfolder != null) {
+                                  callLogfolder.appendMessages(messages.toArray(new Message[messages.size()]));
                               }
-                              if (PrefStore.isCalllogCalendarSyncEnabled(SmsBackupService.this)) {
+                              if (PrefStore.isCallLogCalendarSyncEnabled(context)) {
                                   syncCalendar(converter, result);
                               }
-                              break;
                       }
                   }
                 }
@@ -296,37 +298,41 @@ public class SmsBackupService extends ServiceBase {
 
           } finally {
               if (smsmmsfolder != null)  smsmmsfolder.close();
-              if (calllogfolder != null) calllogfolder.close();
+              if (callLogfolder != null) callLogfolder.close();
           }
       }
 
       private void syncCalendar(CursorToMessage converter, ConversionResult result) {
         if (result.type == DataType.CALLLOG) {
           for (Map<String, String> m : result.mapList) {
-            final int duration = Integer.parseInt(m.get(CallLog.Calls.DURATION));
-            final int callType = Integer.parseInt(m.get(CallLog.Calls.TYPE));
-            final String number= m.get(CallLog.Calls.NUMBER);
-            final Date then    = new Date(Long.valueOf(m.get(CallLog.Calls.DATE)));
-            final CursorToMessage.PersonRecord record = converter.lookupPerson(number);
+            try {
+              final int duration = Integer.parseInt(m.get(CallLog.Calls.DURATION));
+              final int callType = Integer.parseInt(m.get(CallLog.Calls.TYPE));
+              final String number= m.get(CallLog.Calls.NUMBER);
+              final Date then    = new Date(Long.valueOf(m.get(CallLog.Calls.DATE)));
+              final CursorToMessage.PersonRecord record = converter.lookupPerson(number);
 
-            StringBuilder description = new StringBuilder();
-            description.append(getString(R.string.call_number_field, record.getNumber()))
-                       .append(" (")
-                       .append(converter.callTypeString(callType, null))
-                       .append(" )")
-                       .append("\n");
+              StringBuilder description = new StringBuilder();
+              description.append(getString(R.string.call_number_field, record.getNumber()))
+                         .append(" (")
+                         .append(converter.callTypeString(callType, null))
+                         .append(" )")
+                         .append("\n");
 
-            if (callType != CallLog.Calls.MISSED_TYPE) {
-              description.append(getString(R.string.call_duration_field,
-                                           converter.formattedDuration(duration)));
+              if (callType != CallLog.Calls.MISSED_TYPE) {
+                description.append(getString(R.string.call_duration_field,
+                                             converter.formattedDuration(duration)));
+              }
+
+              // insert into calendar
+              CalendarApi.addEntry(context,
+                                   PrefStore.getCallLogCalendarId(context),
+                                   then, duration,
+                                   converter.callTypeString(callType, record.getName()),
+                                   description.toString());
+            } catch (NumberFormatException e) {
+              Log.w(TAG, "error", e);
             }
-
-            // insert into calendar
-            CalendarApi.addEntry(SmsBackupService.this,
-                                 PrefStore.getCalllogCalendarId(SmsBackupService.this),
-                                 then, duration,
-                                 converter.callTypeString(callType, record.getName()),
-                                 description.toString());
           }
         }
       }
@@ -339,7 +345,7 @@ public class SmsBackupService extends ServiceBase {
       private Cursor getSmsItemsToSync(int max, ContactGroup group) {
          if (LOCAL_LOGV) {
             Log.v(TAG, String.format("getSmsItemToSync(max=%d),  maxSyncedDate=%d", max,
-            PrefStore.getMaxSyncedDateSms(SmsBackupService.this)));
+                       PrefStore.getMaxSyncedDateSms(context)));
          }
          String sortOrder = SmsConsts.DATE;
          if (max > 0) sortOrder += " LIMIT " + max;
@@ -347,7 +353,7 @@ public class SmsBackupService extends ServiceBase {
          return getContentResolver().query(SMS_PROVIDER, null,
                 String.format("%s > ? AND %s <> ? %s", SmsConsts.DATE, SmsConsts.TYPE,
                                                        groupSelection(DataType.SMS, group)),
-                new String[] { String.valueOf(PrefStore.getMaxSyncedDateSms(SmsBackupService.this)),
+                new String[] { String.valueOf(PrefStore.getMaxSyncedDateSms(context)),
                                String.valueOf(SmsConsts.MESSAGE_TYPE_DRAFT) },
                 sortOrder);
       }
@@ -360,7 +366,7 @@ public class SmsBackupService extends ServiceBase {
       private Cursor getMmsItemsToSync(int max, ContactGroup group) {
           if (LOCAL_LOGV) Log.v(TAG, "getMmsItemsToSync(max=" + max+")");
 
-          if (!PrefStore.isMmsBackupEnabled(SmsBackupService.this)) {
+          if (!PrefStore.isMmsBackupEnabled(context)) {
             // return empty cursor if we don't have MMS
             if (LOCAL_LOGV) Log.v(TAG, "MMS backup disabled, returning empty cursor");
             return new MatrixCursor(new String[0], 0);
@@ -371,7 +377,7 @@ public class SmsBackupService extends ServiceBase {
           return getContentResolver().query(MMS_PROVIDER, null,
                 String.format("%s > ? AND %s <> ? %s", SmsConsts.DATE, MmsConsts.TYPE,
                                                        groupSelection(DataType.MMS, group)),
-                new String[] { String.valueOf(PrefStore.getMaxSyncedDateMms(SmsBackupService.this)),
+                new String[] { String.valueOf(PrefStore.getMaxSyncedDateMms(context)),
                                MmsConsts.DELIVERY_REPORT },
                 sortOrder);
       }
@@ -379,13 +385,13 @@ public class SmsBackupService extends ServiceBase {
       /**
        * Returns a cursor of call log entries that have not yet been synced with the
        * server. This includes all entries with
-       * <code>date &lt; {@link #getMaxSyncedDateCalllog()}</code>.
+       * <code>date &lt; {@link #getMaxSyncedDateCallLog()}</code>.
        */
-      private Cursor getCalllogItemsToSync(int max) {
-          if (LOCAL_LOGV) Log.v(TAG, "getCalllogItemsToSync(max=" + max+")");
+      private Cursor getCallLogItemsToSync(int max) {
+          if (LOCAL_LOGV) Log.v(TAG, "getCallLogItemsToSync(max=" + max+")");
 
-          if (!PrefStore.isCalllogBackupEnabled(SmsBackupService.this)) {
-            if (LOCAL_LOGV) Log.v(TAG, "Calllog backup disabled, returning empty cursor");
+          if (!PrefStore.isCallLogBackupEnabled(context)) {
+            if (LOCAL_LOGV) Log.v(TAG, "CallLog backup disabled, returning empty cursor");
             return new MatrixCursor(new String[0], 0);
           }
           String sortOrder = SmsConsts.DATE;
@@ -393,7 +399,7 @@ public class SmsBackupService extends ServiceBase {
 
           return getContentResolver().query(CALLLOG_PROVIDER, null,
                 String.format("%s > ?", CallLog.Calls.DATE),
-                new String[] { String.valueOf(PrefStore.getMaxSyncedDateCalllog(SmsBackupService.this)) },
+                new String[] { String.valueOf(PrefStore.getMaxSyncedDateCallLog(context)) },
                 sortOrder);
       }
 
@@ -401,7 +407,7 @@ public class SmsBackupService extends ServiceBase {
          /* MMS group selection not supported at the moment */
          if (type != DataType.SMS || group.type == ContactGroup.Type.EVERYBODY) return "";
 
-         final Set<Long> ids = App.contacts().getGroupContactIds(SmsBackupService.this, group).rawIds;
+         final Set<Long> ids = App.contacts().getGroupContactIds(context, group).rawIds;
          if (LOCAL_LOGV) Log.v(TAG, "only selecting contacts matching " + ids);
          return String.format(" AND (%s = %d OR %s IN (%s))",
                           SmsConsts.TYPE,
@@ -415,7 +421,7 @@ public class SmsBackupService extends ServiceBase {
         if (!background) {
            publishProgress(s);
         } else {
-           if (!PrefStore.isNotificationEnabled(SmsBackupService.this)) return;
+           if (!PrefStore.isNotificationEnabled(context)) return;
 
            switch(s) {
             case AUTH_FAILED:
@@ -438,7 +444,7 @@ public class SmsBackupService extends ServiceBase {
       private int skip() {
           updateMaxSyncedDateSms(getMaxItemDateSms());
           updateMaxSyncedDateMms(getMaxItemDateMms());
-          updateMaxSyncedDateCalllog(getMaxItemDateCalllog());
+          updateMaxSyncedDateCallLog(getMaxItemDateCallLog());
 
           sItemsToSync = sCurrentSyncedItems = 0;
           sIsRunning = false;
