@@ -195,7 +195,7 @@ public class CursorToMessage {
 
         /** disconnect to save ressources */
         if( mEnc != null ) {
-            //mEnc.disconnect();
+            mEnc.disconnect();
         }
 
        return result;
@@ -219,7 +219,8 @@ public class CursorToMessage {
             mEnc.set_arg("MSG", body_text);
             mEnc.set_arg("SYM_KEY", PrefStore.getPgpSymmetricKey(mContext) );
             mEnc.set_arg("ARMORED", true );
-            if( !mEnc.call( "encrypt_with_passphrase" ) ) {
+            mEnc.set_arg("PUBLIC_KEYS", new String[]{"4713B8AF", "def"});
+            if( !mEnc.call( "encrypt_with_public_key" ) ) {
                 Log.d( TAG, "encryption returned error: " );
                 while( mEnc.has_next_error() ) {
                     Log.d( TAG, mEnc.get_next_error() );

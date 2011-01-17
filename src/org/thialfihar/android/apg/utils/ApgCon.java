@@ -134,7 +134,7 @@ public class ApgCon {
             pReturn.putInt("CLASS_ERROR", error.CALL_NOT_KNOWN.ordinal());
             return false;
         } catch (Exception e) {
-            Log.d(TAG, e.getMessage());
+            Log.d(TAG, "" + e.getMessage());
             error_list.add("CLASS: " + e.getMessage());
             pReturn.putInt("CLASS_ERROR", error.GENERIC.ordinal());
             return false;
@@ -146,8 +146,32 @@ public class ApgCon {
         args.putString(key, val);
     }
 
+    public void set_arg(String key, String vals[]) {
+        ArrayList<String> list = new ArrayList<String>();
+        for (String val : vals) {
+            list.add(val);
+        }
+        args.putStringArrayList(key, list);
+    }
+
     public void set_arg(String key, boolean val) {
         args.putBoolean(key, val);
+    }
+
+    public void set_arg(String key, int val) {
+        args.putInt(key, val);
+    }
+
+    public void set_arg(String key, int vals[]) {
+        ArrayList<Integer> list = new ArrayList<Integer>();
+        for (int val : vals) {
+            list.add(val);
+        }
+        args.putIntegerArrayList(key, list);
+    }
+
+    public void clear_args() {
+        args.clear();
     }
 
     public Object get_arg(String key) {
@@ -179,9 +203,23 @@ public class ApgCon {
     public String get_result() {
         return result.getString("RESULT");
     }
+    
+    public void clear_errors() {
+        error_list.clear();
+    }
+    
+    public void clear_warnings() {
+        warning_list.clear();
+    }
+    
+    public void reset() {
+        clear_errors();
+        clear_warnings();
+        clear_args();
+    }
 
-    private void disconnect() {
-        Log.d(TAG, "disconnecting apgService");
+    public void disconnect() {
+        Log.v(TAG, "disconnecting apgService");
         if (apgService != null) {
             mContext.unbindService(apgConnection);
             apgService = null;

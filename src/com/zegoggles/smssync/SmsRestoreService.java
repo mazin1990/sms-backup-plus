@@ -232,9 +232,9 @@ public class SmsRestoreService extends ServiceBase {
                         String body = values.getAsString(SmsConsts.BODY);
 
                         mEnc.set_arg( "MSG", body );
-                        mEnc.set_arg( "SYM_KEY", PrefStore.getPgpSymmetricKey(getBaseContext()) );
+                        //mEnc.set_arg( "SYM_KEY", PrefStore.getPgpSymmetricKey(getBaseContext()) );
 
-                        if( !mEnc.call( "decrypt_with_passphrase" ) ) {
+                        if( !mEnc.call( "decrypt" ) ) {
                             Log.d( TAG, "decryption returned error: " );
                             while( mEnc.has_next_error() ) {
                                 Log.d( TAG, mEnc.get_next_error() );
