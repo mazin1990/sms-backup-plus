@@ -334,20 +334,22 @@ public class CursorToMessage {
 
         String body_text = msgMap.get(SmsConsts.BODY);
         if( PrefStore.isEnablePgpEncryption(mContext) ) {
-            Log.d( TAG, "Trying to encrypt body" );
+            Log.v( TAG, "Trying to encrypt body" );
 
-            mEnc.set_arg("MSG", body_text);
-            mEnc.set_arg("SYM_KEY", PrefStore.getPgpSymmetricKey(mContext) );
-            mEnc.set_arg("ARMORED", true );
-            mEnc.set_arg("PUBLIC_KEYS", new String[]{"4713B8AF", "def"});
-            if( !mEnc.call( "encrypt_with_public_key" ) ) {
-                Log.d( TAG, "encryption returned error: " );
-                while( mEnc.has_next_error() ) {
-                    Log.d( TAG, mEnc.get_next_error() );
-                }
-            }
+            mEnc.reset();
+            mEnc.set_arg("MESSAGE", body_text);
+            mEnc.set_arg("SYMMETRIC_PASSPHRASE", PrefStore.getPgpSymmetricKey(mContext) );
+            mEnc.set_arg("ARMORED_OUTPUT", true );
+            boolean success = mEnc.call( "encrypt_with_passphrase" );
             while( mEnc.has_next_warning() ) {
-                Log.d( TAG, "Warning: "+mEnc.get_next_warning() );
+                Log.w( TAG, "Warning: "+mEnc.get_next_warning() );
+            }
+            if( !success ) {
+                Log.e( TAG, "encryption returned error: " );
+                while( mEnc.has_next_error() ) {
+                    Log.e( TAG, mEnc.get_next_error() );
+                }
+                throw new MessagingException("could not encrypt body");
             }
             body_text = mEnc.get_result();
         }
