@@ -29,7 +29,7 @@ import org.thialfihar.android.apg.IApgService;
  * </p>
  * 
  * @author Markus Doits <markus.doits@googlemail.com>
- * @version 0.9
+ * @version 0.9.1
  * 
  */
 public class ApgCon {
@@ -54,7 +54,11 @@ public class ApgCon {
             if (callback_object != null && callback_method != null) {
                 try {
                     Log.d(TAG, "About to execute callback");
-                    callback_object.getClass().getMethod(callback_method).invoke(callback_object);
+                    if (callback_return_self) {
+                        callback_object.getClass().getMethod(callback_method, ApgCon.class).invoke(callback_object, get_self());
+                    } else {
+                        callback_object.getClass().getMethod(callback_method).invoke(callback_object);
+                    }
                     Log.d(TAG, "Callback executed");
                 } catch (NoSuchMethodException e) {
                     if (stacktraces)
@@ -83,9 +87,12 @@ public class ApgCon {
     private final static int api_version = 1; // aidl api-version it expects
 
     private final Context mContext;
+    private final error connection_status;
     private boolean async_running = false;
     private Object callback_object;
     private String callback_method;
+    public static final boolean default_callback_return_self = false;
+    private boolean callback_return_self = default_callback_return_self;
 
     private final Bundle result = new Bundle();
     private final Bundle args = new Bundle();
@@ -115,6 +122,7 @@ public class ApgCon {
      * 
      */
     public static enum error {
+        NO_ERROR,
         /**
          * generic error
          */
@@ -138,7 +146,8 @@ public class ApgCon {
         /**
          * found APG but without AIDL interface
          */
-        APG_AIDL_MISSING
+        APG_AIDL_MISSING,
+        APG_API_MISSMATCH
     }
 
     private static enum ret {
@@ -163,12 +172,14 @@ public class ApgCon {
         Log.v(TAG, "EncryptionService created");
         mContext = ctx;
 
+        error tmp_connection_status = null;
         try {
             Log.v(TAG, "Searching for the right APG version");
             ServiceInfo apg_services[] = ctx.getPackageManager().getPackageInfo("org.thialfihar.android.apg",
                     PackageManager.GET_SERVICES | PackageManager.GET_META_DATA).services;
             if (apg_services == null) {
                 Log.e(TAG, "Could not fetch services");
+                tmp_connection_status = error.GENERIC;
             } else {
                 boolean apg_service_found = false;
                 for (ServiceInfo inf : apg_services) {
@@ -179,12 +190,15 @@ public class ApgCon {
                             Log.w(TAG, "Could not determine ApgService API");
                             Log.w(TAG, "This probably won't work!");
                             warning_list.add("(LOCAL) Could not determine ApgService API");
+                            tmp_connection_status = error.APG_API_MISSMATCH;
                         } else if (inf.metaData.getInt("api_version") != api_version) {
                             Log.w(TAG, "Found ApgService API version" + inf.metaData.getInt("api_version") + " but exspected " + api_version);
                             Log.w(TAG, "This probably won't work!");
                             warning_list.add("(LOCAL) Found ApgService API version" + inf.metaData.getInt("api_version") + " but exspected " + api_version);
+                            tmp_connection_status = error.APG_API_MISSMATCH;
                         } else {
                             Log.v(TAG, "Found api_version " + api_version + ", everything should work");
+                            tmp_connection_status = error.NO_ERROR;
                         }
                     }
                 }
@@ -193,6 +207,7 @@ public class ApgCon {
                     Log.e(TAG, "Could not find APG with AIDL interface, this probably won't work");
                     error_list.add("(LOCAL) Could not find APG with AIDL interface, this probably won't work");
                     result.putInt(ret.ERROR.name(), error.APG_AIDL_MISSING.ordinal());
+                    tmp_connection_status = error.APG_NOT_FOUND;
                 }
             }
         } catch (PackageManager.NameNotFoundException e) {
@@ -201,7 +216,10 @@ public class ApgCon {
             Log.e(TAG, "Could not find APG, is it installed?");
             error_list.add("(LOCAL) Could not find APG, is it installed?");
             result.putInt(ret.ERROR.name(), error.APG_NOT_FOUND.ordinal());
+            tmp_connection_status = error.APG_NOT_FOUND;
         }
+        
+        connection_status = tmp_connection_status;
     }
 
     /** try to connect to the apg service */
@@ -345,8 +363,6 @@ public class ApgCon {
             Boolean success = (Boolean) IApgService.class.getMethod(function, Bundle.class, Bundle.class).invoke(apgService, pArgs, pReturn);
             error_list.addAll(pReturn.getStringArrayList(ret.ERRORS.name()));
             warning_list.addAll(pReturn.getStringArrayList(ret.WARNINGS.name()));
-            pReturn.remove(ret.ERRORS.name());
-            pReturn.remove(ret.WARNINGS.name());
             return success;
         } catch (NoSuchMethodException e) {
             if (stacktraces)
@@ -644,6 +660,10 @@ public class ApgCon {
     public Bundle get_result_bundle() {
         return result;
     }
+    
+    public error get_connection_status() {
+        return connection_status;
+    }
 
     /**
      * Clears all unfetched errors
@@ -720,10 +740,38 @@ public class ApgCon {
      *            The object, which has the public method meth
      * @param meth
      *            Method to call on the object obj
+     * 
+     * @see #set_callback(Object, String, boolean)
      */
     public void set_callback(Object obj, String meth) {
+        set_callback(obj, meth, default_callback_return_self);
+    }
+
+    /**
+     * Set a callback and whether to return self as a additional parameter
+     * 
+     * <p>
+     * This does the same as {@link #set_callback(Object, String)} with one
+     * Additionally parameter return_self.
+     * </p>
+     * <p>
+     * The additional parameter controls, whether to return itself as a
+     * parameter to the callback method meth (in order to go on working after
+     * async execution has finished). This means, your callback method must have
+     * one parameter of the type ApgCon.
+     * </p>
+     * 
+     * @param obj
+     *            The object, which has the public method meth
+     * @param meth
+     *            Method to call on the object obj
+     * @param return_self
+     *            Whether to return itself as an parameter to meth
+     */
+    public void set_callback(Object obj, String meth, boolean return_self) {
         set_callback_object(obj);
         set_callback_method(meth);
+        set_callback_return_self(return_self);
     }
 
     /**
@@ -749,6 +797,17 @@ public class ApgCon {
     }
 
     /**
+     * Set whether to return self on callback
+     * 
+     * @param arg
+     *            set results as param for callback method
+     * @see #set_callback(Object, String)
+     */
+    public void set_callback_return_self(boolean arg) {
+        callback_return_self = arg;
+    }
+
+    /**
      * Clears any callback object
      * 
      * @see #set_callback(Object, String)
@@ -767,13 +826,24 @@ public class ApgCon {
     }
 
     /**
-     * Clears any callback method and object
+     * Sets to default value of whether to return self on callback
+     * 
+     * @see #set_callback(Object, String, boolean)
+     * @see #default_callback_return_self
+     */
+    public void clear_callback_return_self() {
+        callback_return_self = default_callback_return_self;
+    }
+
+    /**
+     * Clears anything related to callback
      * 
      * @see #set_callback(Object, String)
      */
     public void clear_callback() {
         clear_callback_object();
         clear_callback_method();
+        clear_callback_return_self();
     }
 
     /**
@@ -787,6 +857,7 @@ public class ApgCon {
      * @return true, if an async task is still running, false otherwise
      * 
      * @see #call_async(String)
+     * 
      */
     public boolean is_running() {
         return async_running;
@@ -813,9 +884,12 @@ public class ApgCon {
         clear_errors();
         clear_warnings();
         clear_args();
-        clear_callback_object();
-        clear_callback_method();
+        clear_callback();
         result.clear();
+    }
+
+    public ApgCon get_self() {
+        return this;
     }
 
 }
