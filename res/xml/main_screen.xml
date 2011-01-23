@@ -294,14 +294,12 @@
                 android:persistent="true"
                 android:defaultValue="false"/>
 
-            <EditTextPreference android:key="pgp_symmetric_key"
-                android:title="@string/ui_pgp_symmetric_key_label"
-                android:summary="@string/ui_pgp_symmetric_key_desc"
-                android:singleLine="true"
-                android:password="true"
-                android:dialogMessage="@string/ui_pgp_symmetric_key_msg"
-                android:defaultValue=""
-                android:persistent="true"/>
+            <ListPreference
+              android:key="pgp_encryption_key"
+              android:title="@string/ui_pgp_encryption_key_label"
+              android:summary="@string/ui_pgp_encryption_key_desc"
+              android:dependency="enable_pgp_encryption"
+              android:persistent="true"/>
 
         </PreferenceScreen>
         <CheckBoxPreference android:key="enable_debug_mode"

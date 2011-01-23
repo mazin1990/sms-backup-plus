@@ -140,10 +140,11 @@
 
   <string name="ui_enable_pgp_encryption_label">PGP Encryption</string>
   <string name="ui_enable_pgp_encryption_desc">Encrypt data with APG.</string>
+  <string name="ui_enable_pgp_apg_not_found">Not possible: APG not found.</string>
 
-  <string name="ui_pgp_symmetric_key_label">Encryption key (symmetric)</string>
-  <string name="ui_pgp_symmetric_key_desc">Key to encrypt data with (longer=better).</string>
-  <string name="ui_pgp_symmetric_key_msg">If you loose your key, all your data is lost!</string>
+  <string name="ui_pgp_encryption_key_label">Public key</string>
+  <string name="ui_pgp_encryption_key_desc">Public key to encrypt data with.</string>
+  <string name="ui_pgp_encryption_key_msg">If you loose the corrosponding private key, all your data is lost!</string>
 
   <string name="ui_enable_debug_mode_label">Enable debug mode</string>
   <string name="ui_enable_debug_mode_desc">No sync is happening, just log outputs</string>

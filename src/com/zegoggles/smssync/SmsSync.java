@@ -69,6 +69,8 @@ import oauth.signpost.commonshttp.CommonsHttpOAuthProvider;
 import com.zegoggles.smssync.R;
 import com.zegoggles.smssync.ServiceBase.SmsSyncState;
 
+import org.thialfihar.android.apg.utils.ApgCon;
+
 import static com.zegoggles.smssync.App.*;
 
 /**
@@ -99,6 +101,7 @@ public class SmsSync extends PreferenceActivity {
     StatusPreference statusPref;
     private Uri mAuthorizeUri = null;
     private Donations donations = new Donations(this);
+    private ApgCon apgCon;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -147,6 +150,8 @@ public class SmsSync extends PreferenceActivity {
         super.onResume();
         ServiceBase.smsSync = this;
 
+        apgCon = new ApgCon(this);
+
         initCalendarAndGroups();
 
         updateLastBackupTimes();
@@ -159,10 +164,17 @@ public class SmsSync extends PreferenceActivity {
         updateUsernameLabel(null);
         updateMaxItemsPerSync(null);
         updateMaxItemsPerRestore(null);
+        updatePgpEncryptionKeysFromApg();
 
         statusPref.update();
 
         updateImapSettings(!PrefStore.useXOAuth(this));
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        apgCon.disconnect();
     }
 
     @Override
@@ -298,6 +310,35 @@ public class SmsSync extends PreferenceActivity {
         String imapFolder = PrefStore.getCallLogFolder(this);
         Preference pref = getPreferenceManager().findPreference(PrefStore.PREF_IMAP_FOLDER_CALLLOG);
         pref.setTitle(imapFolder);
+    }
+
+    private void updatePgpEncryptionKeysFromApg() {
+        if( apgCon.get_connection_status() == ApgCon.error.NO_ERROR ) {
+            if (LOCAL_LOGV) Log.v(TAG, "APG found");
+            apgCon.set_arg( "KEY_TYPE", 1 );
+            apgCon.set_callback( this, "setPgpEncryptionKeysPreference", true );
+            apgCon.call_async( "get_keys" );
+        } else {
+            if (LOCAL_LOGV) Log.v(TAG, "APG not found, error: "+apgCon.get_connection_status().name());
+            CheckBoxPreference enable_pgp = (CheckBoxPreference) findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION);
+            enable_pgp.setChecked(false);
+            enable_pgp.setEnabled(false);
+            enable_pgp.setSummary(R.string.ui_enable_pgp_apg_not_found);
+        }
+    }
+
+    public void setPgpEncryptionKeysPreference(ApgCon con) {
+        ListPreference keys = (ListPreference) findPreference(PrefStore.PREF_PGP_ENCRYPTION_KEY);
+        Bundle result = con.get_result_bundle();
+
+        List<String> fprints_l = result.getStringArrayList("FINGERPRINTS");
+        CharSequence[] fprints_cs = fprints_l.toArray(new CharSequence[fprints_l.size()]);
+
+        List<String> userids_l = result.getStringArrayList("USER_IDS");
+        CharSequence[] userids_cs = userids_l.toArray(new CharSequence[userids_l.size()]);
+
+        keys.setEntryValues(fprints_cs);
+        keys.setEntries(userids_cs);
     }
 
     private void initCalendarAndGroups() {

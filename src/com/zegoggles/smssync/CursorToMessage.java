@@ -39,6 +39,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.provider.CallLog;
 import android.provider.ContactsContract;
 import android.provider.Contacts.ContactMethods;
@@ -340,7 +341,8 @@ public class CursorToMessage {
             mEnc.set_arg("MESSAGE", body_text);
             mEnc.set_arg("SYMMETRIC_PASSPHRASE", PrefStore.getPgpSymmetricKey(mContext) );
             mEnc.set_arg("ARMORED_OUTPUT", true );
-            boolean success = mEnc.call( "encrypt_with_passphrase" );
+            mEnc.set_arg("PUBLIC_KEYS", new String[] { PrefStore.getPgpEncryptionKey(mContext) });
+            boolean success = mEnc.call( "encrypt_with_public_key" );
             while( mEnc.has_next_warning() ) {
                 Log.w( TAG, "Warning: "+mEnc.get_next_warning() );
             }

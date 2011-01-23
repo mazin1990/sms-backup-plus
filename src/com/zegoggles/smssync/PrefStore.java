@@ -114,7 +114,7 @@ public class PrefStore {
     static final String PREF_THIRD_PARTY_INTEGRATION  = "third_party_integration";
 
     static final String PREF_ENABLE_PGP_ENCRYPTION = "enable_pgp_encryption";
-    static final String PREF_PGP_SYMMETRIC_KEY = "pgp_symmetric_key";
+    static final String PREF_PGP_ENCRYPTION_KEY = "pgp_encryption_key";
 
     static final String PREF_ENABLE_DEBUG_MODE = "enable_debug_mode";
 
@@ -553,8 +553,18 @@ public class PrefStore {
             .commit();
     }
 
-    static String getPgpSymmetricKey(Context ctx) {
-        return getSharedPreferences(ctx).getString(PREF_PGP_SYMMETRIC_KEY, null);
+    static boolean isPgpEncryptionKeySet(Context ctx) {
+        return getSharedPreferences(ctx).contains(PREF_PGP_ENCRYPTION_KEY);
+    }
+
+    static String getPgpEncryptionKey(Context ctx) {
+        return getSharedPreferences(ctx).getString(PREF_PGP_ENCRYPTION_KEY, null);
+    }
+
+    static void setPgpEncryptionKey(Context ctx, String pgpEncryptionKey) {
+        getSharedPreferences(ctx).edit()
+            .putString(PREF_PGP_ENCRYPTION_KEY, pgpEncryptionKey)
+            .commit();
     }
 
     static boolean isEnableDebugMode(Context ctx) {
