@@ -237,19 +237,20 @@ public class SmsRestoreService extends ServiceBase {
                     String body = values.getAsString(SmsConsts.BODY);
 
                     mEnc.set_arg( "MESSAGE", body );
-                    if( !smsSync.keyPassphrases.containsKey(encryption_key) ) {
+                    if( !SmsSync.getKeyPassphrases().containsKey(encryption_key) ) {
                         Log.v( TAG, "We should ask for passphrase here for key "+encryption_key );
-                        smsSync.askingForKeyPassphrase = true;
                         pgpKey = encryption_key;
                         mHandler.post( new Runnable() {
                             public void run() {
                                 smsSync.show(SmsSync.Dialogs.ASK_PGP_PASSPHRASE);
                             }
                         });
-                        while( smsSync.askingForKeyPassphrase ) {
+
+                        while( SmsSync.isAskingForKeyPassphrase() && !sCanceled ) {
                             android.os.SystemClock.sleep(1000);
                             Log.v(TAG, "Sleeping: Dialog still open" );
                         }
+
                         pgpKey = null;
                     }
 
@@ -259,7 +260,7 @@ public class SmsRestoreService extends ServiceBase {
                     }
 
 
-                    mEnc.set_arg( "PRIVATE_KEY_PASSPHRASE", smsSync.keyPassphrases.get(encryption_key) );
+                    mEnc.set_arg( "PRIVATE_KEY_PASSPHRASE", SmsSync.getKeyPassphrases().get(encryption_key) );
 
                     boolean success = mEnc.call( "decrypt" );
                     while( mEnc.has_next_warning() ) {
@@ -272,7 +273,7 @@ public class SmsRestoreService extends ServiceBase {
                             Log.d( TAG, mEnc.get_next_error() );
                         }
 
-                        smsSync.keyPassphrases.remove(encryption_key);
+                        SmsSync.getKeyPassphrases().remove(encryption_key);
                         sCanceled = true;
 
                         throw new MessagingException("could not decrypt body");

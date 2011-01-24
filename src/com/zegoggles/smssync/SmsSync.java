@@ -104,8 +104,16 @@ public class SmsSync extends PreferenceActivity {
     private Uri mAuthorizeUri = null;
     private Donations donations = new Donations(this);
     private ApgCon apgCon;
-    public Map<String,String> keyPassphrases = new HashMap<String,String>();
-    public boolean askingForKeyPassphrase = false;
+    private static final Map<String,String> keyPassphrases = new HashMap<String,String>();
+    private static boolean askingForKeyPassphrase = false;
+
+    public static Map<String,String> getKeyPassphrases() {
+        return keyPassphrases;
+    }
+
+    public static boolean isAskingForKeyPassphrase() {
+        return askingForKeyPassphrase;
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -744,27 +752,27 @@ public class SmsSync extends PreferenceActivity {
                 msg   = getString(R.string.ui_dialog_brokendroidx_msg);
                 break;
             case ASK_PGP_PASSPHRASE:
+                askingForKeyPassphrase = true;
+
                 AlertDialog.Builder alert = new AlertDialog.Builder(this);                 
-                alert.setTitle("Passphrase required");  
-                alert.setMessage("Enter passphrase for private key: "+SmsRestoreService.getPgpKey());
+                alert.setTitle(getString(R.string.ui_dialog_ask_pgp_passphrase_title));  
+                alert.setMessage(getString(R.string.ui_dialog_ask_pgp_passphrase_msg)+" "+SmsRestoreService.getPgpKey());
 
                 // Set an EditText view to get user input   
                 final android.widget.EditText input = new android.widget.EditText(this); 
                 input.setTransformationMethod( new android.text.method.PasswordTransformationMethod() );
                 alert.setView(input);
 
-                alert.setPositiveButton("Ok", new android.content.DialogInterface.OnClickListener() {  
-                    public void onClick(android.content.DialogInterface dialog, int whichButton) {  
+                alert.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {  
+                    public void onClick(DialogInterface dialog, int whichButton) {  
                         String value = input.getText().toString();
-                        Log.v( TAG, "Pin Value : " + value);
                         keyPassphrases.put( SmsRestoreService.getPgpKey(), value );
                         return;                  
                     }  
                 });  
 
-                alert.setNegativeButton("Cancel", new android.content.DialogInterface.OnClickListener() {
-
-                    public void onClick(android.content.DialogInterface dialog, int which) {
+                alert.setNegativeButton(getString(android.R.string.cancel), new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
                         SmsRestoreService.cancel();
                         return;   
                     }

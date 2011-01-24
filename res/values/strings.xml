@@ -165,6 +165,9 @@
   <string name="error_wifi_only_no_connection">No Wifi connection</string>
   <string name="error_no_connection">No internet connection</string>
 
+  <string name="ui_dialog_ask_pgp_passphrase_title">Passphrase required</string>
+  <string name="ui_dialog_ask_pgp_passphrase_msg">Please enter the passphrase for the private key:</string>
+
   <string name="ui_dialog_missing_credentials_title">Login information</string>
 
   <string name="ui_dialog_missing_credentials_msg_xoauth">You need to connect your Gmail account first.</string>
