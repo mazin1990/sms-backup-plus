@@ -96,7 +96,8 @@ public class SmsSync extends PreferenceActivity {
       CONNECT_TOKEN_ERROR,
       UPGRADE,
       BROKEN_DROIDX,
-      ASK_PGP_PASSPHRASE
+      ASK_PGP_PASSPHRASE,
+      PRIVATE_KEY_MISSING
     }
 
     StatusPreference statusPref;
@@ -784,6 +785,10 @@ public class SmsSync extends PreferenceActivity {
                     }
                 });
                 return diag;
+            case PRIVATE_KEY_MISSING:
+                title = getString(R.string.ui_dialog_private_key_missing_title);
+                msg = getString(R.string.ui_dialog_private_key_missing_msg);
+                break;
             default:
                 return null;
         }

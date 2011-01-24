@@ -169,6 +169,9 @@
   <string name="ui_dialog_ask_pgp_passphrase_msg">Please enter the passphrase for the private key:</string>
   <string name="ui_dialog_ask_pgp_passphrase_last_key_wrong">Wrong key entered.</string>
 
+  <string name="ui_dialog_private_key_missing_title">Cannot find key</string>
+  <string name="ui_dialog_private_key_missing_msg">Could not find the required key for decrypting in APG. Please make sure you have imported the private key into APG\'s keystore.</string>
+
   <string name="ui_dialog_missing_credentials_title">Login information</string>
 
   <string name="ui_dialog_missing_credentials_msg_xoauth">You need to connect your Gmail account first.</string>

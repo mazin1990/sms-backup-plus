@@ -291,6 +291,14 @@ public class SmsRestoreService extends ServiceBase {
                             return;
                         }
 
+                        if( mEnc.get_error() == 102 ) { // no matching private key found, show dialog about this
+                            mHandler.post( new Runnable() {
+                                public void run() {
+                                    smsSync.show(SmsSync.Dialogs.PRIVATE_KEY_MISSING);
+                                }
+                            });
+                        }
+
                         sCanceled = true;
 
                         throw new MessagingException("could not decrypt body");
