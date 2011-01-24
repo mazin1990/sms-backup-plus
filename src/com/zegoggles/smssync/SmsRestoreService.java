@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Bundle;
 import android.content.Context;
 import android.util.Log;
 import android.provider.CallLog;
@@ -19,6 +20,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.io.File;
 import java.io.IOException;
 import java.io.FilenameFilter;
@@ -36,7 +39,9 @@ public class SmsRestoreService extends ServiceBase {
 
     private static boolean sIsRunning = false;
     private static boolean sCanceled = false;
-    private static String pgpKey = null;
+    private static String currentPgpKey = null;
+    private static boolean lastPgpKeyWasWrong = false;
+    private static final Map<String,String> pgpKeyPassphrases = new HashMap<String,String>();
 
     private ApgCon mEnc;
 
@@ -56,8 +61,8 @@ public class SmsRestoreService extends ServiceBase {
         return sItemsToRestoreCount;
     }
 
-    public static String getPgpKey() {
-        return pgpKey;
+    public static void putPgpPassphrase( String pass ) {
+        pgpKeyPassphrases.put( currentPgpKey, pass );
     }
 
     class RestoreTask extends AsyncTask<Integer, SmsSyncState, Integer> {
@@ -234,33 +239,38 @@ public class SmsRestoreService extends ServiceBase {
 
                 // decrypt encrypted body before restoring
                 if( encryption_key != null ) {
+                    mEnc.reset();
+
                     String body = values.getAsString(SmsConsts.BODY);
 
                     mEnc.set_arg( "MESSAGE", body );
-                    if( !SmsSync.getKeyPassphrases().containsKey(encryption_key) ) {
+                    if( !pgpKeyPassphrases.containsKey(encryption_key) ) {
                         Log.v( TAG, "We should ask for passphrase here for key "+encryption_key );
-                        pgpKey = encryption_key;
+                        currentPgpKey = encryption_key;
+                        final Bundle diagArgs = new Bundle();
+                        diagArgs.putString( "key", encryption_key );
+                        diagArgs.putBoolean( "last_key_was_wrong", lastPgpKeyWasWrong );
                         mHandler.post( new Runnable() {
                             public void run() {
-                                smsSync.show(SmsSync.Dialogs.ASK_PGP_PASSPHRASE);
+                                smsSync.showDialog(SmsSync.Dialogs.ASK_PGP_PASSPHRASE.ordinal(), diagArgs);
                             }
                         });
 
+                        android.os.SystemClock.sleep(1000);
                         while( SmsSync.isAskingForKeyPassphrase() && !sCanceled ) {
                             android.os.SystemClock.sleep(1000);
                             Log.v(TAG, "Sleeping: Dialog still open" );
                         }
 
-                        pgpKey = null;
                     }
 
                     if( sCanceled ) {
                         Log.v(TAG, "User canceled on entering passphrase" );
+                        lastPgpKeyWasWrong = false; // reset it to not show up on next restore
                         return;
                     }
 
-
-                    mEnc.set_arg( "PRIVATE_KEY_PASSPHRASE", SmsSync.getKeyPassphrases().get(encryption_key) );
+                    mEnc.set_arg( "PRIVATE_KEY_PASSPHRASE", pgpKeyPassphrases.get(encryption_key) );
 
                     boolean success = mEnc.call( "decrypt" );
                     while( mEnc.has_next_warning() ) {
@@ -273,12 +283,20 @@ public class SmsRestoreService extends ServiceBase {
                             Log.d( TAG, mEnc.get_next_error() );
                         }
 
-                        SmsSync.getKeyPassphrases().remove(encryption_key);
+                        pgpKeyPassphrases.remove(encryption_key);
+
+                        if( mEnc.get_error() == 103 || mEnc.get_error() == 104 ) { // bad or missing passphrase, try again
+                            lastPgpKeyWasWrong = true;
+                            importSms(message);
+                            return;
+                        }
+
                         sCanceled = true;
 
                         throw new MessagingException("could not decrypt body");
                     }
 
+                    lastPgpKeyWasWrong = false;
                     values.put(SmsConsts.BODY, mEnc.get_result() );
                     values.remove("pgp");
                 }

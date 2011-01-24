@@ -22,7 +22,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Date;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,12 +103,7 @@ public class SmsSync extends PreferenceActivity {
     private Uri mAuthorizeUri = null;
     private Donations donations = new Donations(this);
     private ApgCon apgCon;
-    private static final Map<String,String> keyPassphrases = new HashMap<String,String>();
     private static boolean askingForKeyPassphrase = false;
-
-    public static Map<String,String> getKeyPassphrases() {
-        return keyPassphrases;
-    }
 
     public static boolean isAskingForKeyPassphrase() {
         return askingForKeyPassphrase;
@@ -752,13 +746,12 @@ public class SmsSync extends PreferenceActivity {
                 msg   = getString(R.string.ui_dialog_brokendroidx_msg);
                 break;
             case ASK_PGP_PASSPHRASE:
-                askingForKeyPassphrase = true;
 
                 AlertDialog.Builder alert = new AlertDialog.Builder(this);                 
-                alert.setTitle(getString(R.string.ui_dialog_ask_pgp_passphrase_title));  
-                alert.setMessage(getString(R.string.ui_dialog_ask_pgp_passphrase_msg)+" "+SmsRestoreService.getPgpKey());
 
-                // Set an EditText view to get user input   
+                alert.setTitle(getString(R.string.ui_dialog_ask_pgp_passphrase_title));
+                alert.setMessage(""); // or else we cannot change it in onPrepareListener()
+
                 final android.widget.EditText input = new android.widget.EditText(this); 
                 input.setTransformationMethod( new android.text.method.PasswordTransformationMethod() );
                 alert.setView(input);
@@ -766,15 +759,15 @@ public class SmsSync extends PreferenceActivity {
                 alert.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {  
                     public void onClick(DialogInterface dialog, int whichButton) {  
                         String value = input.getText().toString();
-                        keyPassphrases.put( SmsRestoreService.getPgpKey(), value );
-                        return;                  
+                        SmsRestoreService.putPgpPassphrase( value );
+                        return;
                     }  
                 });  
 
                 alert.setNegativeButton(getString(android.R.string.cancel), new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
                         SmsRestoreService.cancel();
-                        return;   
+                        return;
                     }
                 });
 
@@ -784,11 +777,32 @@ public class SmsSync extends PreferenceActivity {
                         askingForKeyPassphrase = false;
                     }
                 });
+
+                diag.setOnShowListener( new DialogInterface.OnShowListener() {
+                    public void onShow(DialogInterface dialog) {
+                        askingForKeyPassphrase = true;
+                    }
+                });
                 return diag;
             default:
                 return null;
         }
         return createMessageDialog(id, title, msg);
+    }
+
+    @Override
+    protected void onPrepareDialog( int id, Dialog dialog, Bundle args ) {
+        Log.v(TAG, "got "+Dialogs.values()[id]);
+        switch (Dialogs.values()[id]) {
+            case ASK_PGP_PASSPHRASE:
+                String defaultMsg = getString(R.string.ui_dialog_ask_pgp_passphrase_msg)+" "+args.getString("key");
+                if( args.getBoolean("last_key_was_wrong") ) {
+                    ((AlertDialog)dialog).setMessage(defaultMsg+ "\n\n"+getString(R.string.ui_dialog_ask_pgp_passphrase_last_key_wrong));
+                } else {
+                    ((AlertDialog)dialog).setMessage(defaultMsg);
+                }
+                break;
+        }
     }
 
     private Dialog createMessageDialog(final int id, String title, String msg) {
