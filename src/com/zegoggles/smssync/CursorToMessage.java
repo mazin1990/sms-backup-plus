@@ -139,7 +139,7 @@ public class CursorToMessage {
         String BACKUP_TIME    = "X-smssync-backup-time";
         String VERSION        = "X-smssync-version";
         String DURATION       = "X-smssync-duration";
-        String PGP_TYPE       = "X-smssync-pgp_type";
+        String PGP_KEY        = "X-smssync-pgp_key";
     }
 
     public CursorToMessage(Context ctx, String userEmail) {
@@ -230,7 +230,7 @@ public class CursorToMessage {
             values.put(SmsConsts.THREAD_ID, threadHelper.getThreadId(mContext, address));
             values.put(SmsConsts.READ,
               PrefStore.getMarkAsReadOnRestore(mContext) ? "1" : getHeader(message, Headers.READ));
-            values.put("pgp", getHeader(message, Headers.PGP_TYPE));
+            values.put("pgp", getHeader(message, Headers.PGP_KEY));
 
             break;
           case CALLLOG:
@@ -339,7 +339,6 @@ public class CursorToMessage {
 
             mEnc.reset();
             mEnc.set_arg("MESSAGE", body_text);
-            mEnc.set_arg("SYMMETRIC_PASSPHRASE", PrefStore.getPgpSymmetricKey(mContext) );
             mEnc.set_arg("ARMORED_OUTPUT", true );
             mEnc.set_arg("PUBLIC_KEYS", new String[] { PrefStore.getPgpEncryptionKey(mContext) });
             boolean success = mEnc.call( "encrypt_with_public_key" );
@@ -392,7 +391,7 @@ public class CursorToMessage {
         msg.setHeader(Headers.SERVICE_CENTER, msgMap.get(SmsConsts.SERVICE_CENTER));
         msg.setHeader(Headers.BACKUP_TIME, new Date().toGMTString());
         msg.setHeader(Headers.VERSION, PrefStore.getVersion(mContext, true));
-        msg.setHeader(Headers.PGP_TYPE, PrefStore.isEnablePgpEncryption(mContext) ? "sym" : "none" );
+        msg.setHeader(Headers.PGP_KEY, PrefStore.isEnablePgpEncryption(mContext) ? PrefStore.getPgpEncryptionKey(mContext) : "none" );
         msg.setFlag(Flag.SEEN, mMarkAsRead);
 
         return msg;

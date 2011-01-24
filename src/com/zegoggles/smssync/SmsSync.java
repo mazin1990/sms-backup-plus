@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Date;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,13 +96,16 @@ public class SmsSync extends PreferenceActivity {
       CONNECT,
       CONNECT_TOKEN_ERROR,
       UPGRADE,
-      BROKEN_DROIDX
+      BROKEN_DROIDX,
+      ASK_PGP_PASSPHRASE
     }
 
     StatusPreference statusPref;
     private Uri mAuthorizeUri = null;
     private Donations donations = new Donations(this);
     private ApgCon apgCon;
+    public Map<String,String> keyPassphrases = new HashMap<String,String>();
+    public boolean askingForKeyPassphrase = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -739,6 +743,40 @@ public class SmsSync extends PreferenceActivity {
                 title = getString(R.string.ui_dialog_brokendroidx_title);
                 msg   = getString(R.string.ui_dialog_brokendroidx_msg);
                 break;
+            case ASK_PGP_PASSPHRASE:
+                AlertDialog.Builder alert = new AlertDialog.Builder(this);                 
+                alert.setTitle("Passphrase required");  
+                alert.setMessage("Enter passphrase for private key: "+SmsRestoreService.getPgpKey());
+
+                // Set an EditText view to get user input   
+                final android.widget.EditText input = new android.widget.EditText(this); 
+                input.setTransformationMethod( new android.text.method.PasswordTransformationMethod() );
+                alert.setView(input);
+
+                alert.setPositiveButton("Ok", new android.content.DialogInterface.OnClickListener() {  
+                    public void onClick(android.content.DialogInterface dialog, int whichButton) {  
+                        String value = input.getText().toString();
+                        Log.v( TAG, "Pin Value : " + value);
+                        keyPassphrases.put( SmsRestoreService.getPgpKey(), value );
+                        return;                  
+                    }  
+                });  
+
+                alert.setNegativeButton("Cancel", new android.content.DialogInterface.OnClickListener() {
+
+                    public void onClick(android.content.DialogInterface dialog, int which) {
+                        SmsRestoreService.cancel();
+                        return;   
+                    }
+                });
+
+                AlertDialog diag = alert.create();
+                diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
+                    public void onDismiss(DialogInterface dialog) {
+                        askingForKeyPassphrase = false;
+                    }
+                });
+                return diag;
             default:
                 return null;
         }

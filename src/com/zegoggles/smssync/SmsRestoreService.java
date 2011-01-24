@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.Context;
 import android.util.Log;
 import android.provider.CallLog;
@@ -34,6 +36,7 @@ public class SmsRestoreService extends ServiceBase {
 
     private static boolean sIsRunning = false;
     private static boolean sCanceled = false;
+    private static String pgpKey = null;
 
     private ApgCon mEnc;
 
@@ -53,7 +56,14 @@ public class SmsRestoreService extends ServiceBase {
         return sItemsToRestoreCount;
     }
 
+    public static String getPgpKey() {
+        return pgpKey;
+    }
+
     class RestoreTask extends AsyncTask<Integer, SmsSyncState, Integer> {
+
+        private Handler mHandler = new Handler(Looper.getMainLooper());
+
         private Set<String> smsIds     = new HashSet<String>();
         private Set<String> callLogIds = new HashSet<String>();
         private Set<String> uids       = new HashSet<String>();
@@ -213,32 +223,63 @@ public class SmsRestoreService extends ServiceBase {
                 String pgp_header = values.getAsString("pgp");
                 Log.d( TAG, "pgp header is: "+pgp_header);
 
-                boolean body_is_encrypted = false;
+                String encryption_key = null;
                 if( pgp_header != null && pgp_header != "none" ) {
-                    body_is_encrypted = true;
+                    encryption_key = pgp_header;
+
                     if( mEnc == null ) {
-                        mEnc = new ApgCon(getBaseContext());
+                        mEnc = new ApgCon(getApplicationContext());
                     }
                 }
 
                 // decrypt encrypted body before restoring
-                if( body_is_encrypted ) {
+                if( encryption_key != null ) {
                     String body = values.getAsString(SmsConsts.BODY);
 
-                    mEnc.set_arg( "MSG", body );
-                    //mEnc.set_arg( "SYM_KEY", PrefStore.getPgpSymmetricKey(getBaseContext()) );
-
-                    if( !mEnc.call( "decrypt" ) ) {
-                        Log.d( TAG, "decryption returned error: " );
-                        while( mEnc.has_next_error() ) {
-                            Log.d( TAG, mEnc.get_next_error() );
+                    mEnc.set_arg( "MESSAGE", body );
+                    if( !smsSync.keyPassphrases.containsKey(encryption_key) ) {
+                        Log.v( TAG, "We should ask for passphrase here for key "+encryption_key );
+                        smsSync.askingForKeyPassphrase = true;
+                        pgpKey = encryption_key;
+                        mHandler.post( new Runnable() {
+                            public void run() {
+                                smsSync.show(SmsSync.Dialogs.ASK_PGP_PASSPHRASE);
+                            }
+                        });
+                        while( smsSync.askingForKeyPassphrase ) {
+                            android.os.SystemClock.sleep(1000);
+                            Log.v(TAG, "Sleeping: Dialog still open" );
                         }
+                        pgpKey = null;
                     }
+
+                    if( sCanceled ) {
+                        Log.v(TAG, "User canceled on entering passphrase" );
+                        return;
+                    }
+
+
+                    mEnc.set_arg( "PRIVATE_KEY_PASSPHRASE", smsSync.keyPassphrases.get(encryption_key) );
+
+                    boolean success = mEnc.call( "decrypt" );
                     while( mEnc.has_next_warning() ) {
                         Log.d( TAG, "Warning: "+mEnc.get_next_warning() );
                     }
 
+                    if( !success ) {
+                        Log.d( TAG, "decryption returned error: " );
+                        while( mEnc.has_next_error() ) {
+                            Log.d( TAG, mEnc.get_next_error() );
+                        }
+
+                        smsSync.keyPassphrases.remove(encryption_key);
+                        sCanceled = true;
+
+                        throw new MessagingException("could not decrypt body");
+                    }
+
                     values.put(SmsConsts.BODY, mEnc.get_result() );
+                    values.remove("pgp");
                 }
 
                 final Uri uri = getContentResolver().insert(SMS_PROVIDER, values);
