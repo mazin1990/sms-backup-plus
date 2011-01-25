@@ -41,6 +41,7 @@ public class SmsRestoreService extends ServiceBase {
     private static boolean sCanceled = false;
     private static String currentPgpKey = null;
     private static boolean lastPgpKeyWasWrong = false;
+    private static boolean waitForPgpPassphrase = true;
     private static final Map<String,String> pgpKeyPassphrases = new HashMap<String,String>();
 
     private ApgCon mEnc;
@@ -63,6 +64,10 @@ public class SmsRestoreService extends ServiceBase {
 
     public static void putPgpPassphrase( String pass ) {
         pgpKeyPassphrases.put( currentPgpKey, pass );
+    }
+
+    public static void setWaitForPgpPassphrase( boolean val ) {
+        waitForPgpPassphrase = val;
     }
 
     class RestoreTask extends AsyncTask<Integer, SmsSyncState, Integer> {
@@ -246,6 +251,7 @@ public class SmsRestoreService extends ServiceBase {
                     mEnc.set_arg( "MESSAGE", body );
                     if( !pgpKeyPassphrases.containsKey(encryption_key) ) {
                         Log.v( TAG, "We should ask for passphrase here for key "+encryption_key );
+                        waitForPgpPassphrase = true;
                         currentPgpKey = encryption_key;
                         final Bundle diagArgs = new Bundle();
                         diagArgs.putString( "key", encryption_key );
@@ -256,10 +262,9 @@ public class SmsRestoreService extends ServiceBase {
                             }
                         });
 
-                        android.os.SystemClock.sleep(1000);
-                        while( SmsSync.isAskingForKeyPassphrase() && !sCanceled ) {
-                            android.os.SystemClock.sleep(1000);
+                        while( waitForPgpPassphrase && !sCanceled ) {
                             Log.v(TAG, "Sleeping: Dialog still open" );
+                            android.os.SystemClock.sleep(1000);
                         }
 
                     }

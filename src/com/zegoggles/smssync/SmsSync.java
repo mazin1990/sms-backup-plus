@@ -105,11 +105,6 @@ public class SmsSync extends PreferenceActivity {
     private Uri mAuthorizeUri = null;
     private Donations donations = new Donations(this);
     private ApgCon apgCon;
-    private static boolean askingForKeyPassphrase = false;
-
-    public static boolean isAskingForKeyPassphrase() {
-        return askingForKeyPassphrase;
-    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -779,15 +774,10 @@ public class SmsSync extends PreferenceActivity {
                 AlertDialog diag = alert.create();
                 diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
                     public void onDismiss(DialogInterface dialog) {
-                        askingForKeyPassphrase = false;
+                        SmsRestoreService.setWaitForPgpPassphrase( false );
                     }
                 });
 
-                diag.setOnShowListener( new DialogInterface.OnShowListener() {
-                    public void onShow(DialogInterface dialog) {
-                        askingForKeyPassphrase = true;
-                    }
-                });
                 return diag;
             case PRIVATE_KEY_MISSING:
                 title = getString(R.string.ui_dialog_private_key_missing_title);
