@@ -39,10 +39,12 @@ public class SmsRestoreService extends ServiceBase {
 
     private static boolean sIsRunning = false;
     private static boolean sCanceled = false;
+    private static boolean sWait = false;
     private static String currentPgpKey = null;
     private static boolean lastPgpKeyWasWrong = false;
     private static boolean waitForPgpPassphrase = true;
     private static final Map<String,String> pgpKeyPassphrases = new HashMap<String,String>();
+    private static final Set<String> pgpKeysToSkip = new HashSet<String>();
 
     private ApgCon mEnc;
 
@@ -52,6 +54,14 @@ public class SmsRestoreService extends ServiceBase {
 
     public static boolean isWorking() {
         return sIsRunning;
+    }
+
+    public static void halt() {
+        sWait = true;
+    }
+
+    public static void goOn() {
+        sWait = false;
     }
 
     public static int getCurrentRestoredItems() {
@@ -64,6 +74,10 @@ public class SmsRestoreService extends ServiceBase {
 
     public static void putPgpPassphrase( String pass ) {
         pgpKeyPassphrases.put( currentPgpKey, pass );
+    }
+
+    public static void skipCurrentPgpKey() {
+        pgpKeysToSkip.add( currentPgpKey );
     }
 
     public static void setWaitForPgpPassphrase( boolean val ) {
@@ -125,6 +139,11 @@ public class SmsRestoreService extends ServiceBase {
                       //clear cache periodically otherwise SD card fills up
                       clearCache();
                     }
+
+                    while( sWait && !sCanceled ) { // wait with next sms if someone requested
+                        android.os.SystemClock.sleep(1000);
+                    }
+
                 }
                 publishProgress(UPDATING_THREADS);
                 updateAllThreads(false);
@@ -165,6 +184,7 @@ public class SmsRestoreService extends ServiceBase {
             }
             sCanceled = false;
             sIsRunning = false;
+            pgpKeysToSkip.clear();
         }
 
         @Override protected void onProgressUpdate(SmsSyncState... progress) {
@@ -250,7 +270,11 @@ public class SmsRestoreService extends ServiceBase {
 
                     mEnc.set_arg( "MESSAGE", body );
                     if( !pgpKeyPassphrases.containsKey(encryption_key) ) {
-                        Log.v( TAG, "We should ask for passphrase here for key "+encryption_key );
+                        if( pgpKeysToSkip.contains( encryption_key ) ) {
+                            Log.v(TAG, "Encrypted body, but user skipped that key before, so skip here, too" );
+                            return;
+                        }
+                        Log.v( TAG, "Will ask for passphrase for key "+encryption_key );
                         waitForPgpPassphrase = true;
                         currentPgpKey = encryption_key;
                         final Bundle diagArgs = new Bundle();
@@ -275,6 +299,11 @@ public class SmsRestoreService extends ServiceBase {
                         return;
                     }
 
+                    if( pgpKeysToSkip.contains( encryption_key ) ) {
+                        Log.v(TAG, "User wants to skip this key" );
+                        return;
+                    }
+
                     mEnc.set_arg( "PRIVATE_KEY_PASSPHRASE", pgpKeyPassphrases.get(encryption_key) );
 
                     boolean success = mEnc.call( "decrypt" );
@@ -296,12 +325,15 @@ public class SmsRestoreService extends ServiceBase {
                             return;
                         }
 
-                        if( mEnc.get_error() == 102 ) { // no matching private key found, show dialog about this
+                        if( mEnc.get_error() == 102 ) { // no matching private key found, show dialog about this and skip the key
+                            sWait = true; // wait until user closes the following dialog
                             mHandler.post( new Runnable() {
                                 public void run() {
                                     smsSync.show(SmsSync.Dialogs.PRIVATE_KEY_MISSING);
                                 }
                             });
+                            pgpKeysToSkip.add( encryption_key );
+                            return;
                         }
 
                         sCanceled = true;

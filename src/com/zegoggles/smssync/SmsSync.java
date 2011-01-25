@@ -771,6 +771,13 @@ public class SmsSync extends PreferenceActivity {
                     }
                 });
 
+                alert.setNeutralButton(getString(R.string.ui_dialog_ask_pgp_passphrase_button_skip_this_key), new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        SmsRestoreService.skipCurrentPgpKey();
+                        return;
+                    }
+                });
+
                 AlertDialog diag = alert.create();
                 diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
                     public void onDismiss(DialogInterface dialog) {
@@ -782,7 +789,13 @@ public class SmsSync extends PreferenceActivity {
             case PRIVATE_KEY_MISSING:
                 title = getString(R.string.ui_dialog_private_key_missing_title);
                 msg = getString(R.string.ui_dialog_private_key_missing_msg);
-                break;
+                Dialog dia = createMessageDialog(id, title, msg);
+                dia.setOnDismissListener( new DialogInterface.OnDismissListener() {
+                    public void onDismiss(DialogInterface dialog) {
+                        SmsRestoreService.goOn();
+                    }
+                });
+                return dia;
             default:
                 return null;
         }
