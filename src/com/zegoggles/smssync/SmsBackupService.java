@@ -31,7 +31,6 @@ import com.fsck.k9.mail.Folder;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.AuthenticationFailedException;
-import com.fsck.k9.mail.internet.TextBody;
 import com.zegoggles.smssync.CursorToMessage.ConversionResult;
 import com.zegoggles.smssync.CursorToMessage.DataType;
 import com.zegoggles.smssync.ServiceBase.SmsSyncState;
@@ -209,16 +208,11 @@ public class SmsBackupService extends ServiceBase {
           Log.i(TAG, String.format("Starting backup (%d messages)", sItemsToSync));
           final CursorToMessage converter = new CursorToMessage(context, PrefStore.getUserEmail(context));
 
-          Folder smsmmsfolder  = null;
+          publish(LOGIN);
+          Folder smsmmsfolder  = getSMSBackupFolder();
           Folder callLogfolder = null;
-
-          if( !PrefStore.isEnableDebugMode(SmsBackupService.this) ) {
-              publish(LOGIN);
-              smsmmsfolder  = getSMSBackupFolder();
-              callLogfolder = null;
-              if (PrefStore.isCallLogBackupEnabled(context)) {
-                  callLogfolder = getCallLogBackupFolder();
-              }
+          if (PrefStore.isCallLogBackupEnabled(context)) {
+            callLogfolder = getCallLogBackupFolder();
           }
 
           try {
@@ -244,46 +238,24 @@ public class SmsBackupService extends ServiceBase {
                 if (!messages.isEmpty()) {
                   if (LOCAL_LOGV) Log.v(TAG, String.format("sending %d %s message(s) to server.",
                                              messages.size(), dataType));
-                  if( PrefStore.isEnableDebugMode(SmsBackupService.this) ) {
-                      for( int i = 0; i < messages.size(); i++ ) {
-                          Log.d(TAG, String.format("--- msg nr. %d ---", i ) );
-                          Message msg = messages.get(i);
-                          String msg_headers[] = msg.getHeaderNames().toArray(new String[msg.getHeaderNames().size()]);
-
-                          for( int ii = 0; ii < msg_headers.length; ii++ ) {
-                              Log.d(TAG, String.format("msg header '%s':", msg_headers[ii], msg.getHeader(msg_headers[ii])[0] ) );
-                              String[] msg_header_vals = msg.getHeader(msg_headers[ii]);
-                              for( int iii = 0; iii < msg_header_vals.length; iii++ ) {
-                                  Log.d(TAG, String.format("  %s", msg_header_vals[iii] ) );
-                              }
-                          }
-
-                          Log.d(TAG, "### Body is: ###" );
-
-                          TextBody msg_body = (TextBody) msg.getBody();
-                              
-                          Log.d(TAG, String.format( "%s", msg_body.getText() ) );
-                          Log.d(TAG, "### Body end ###" );
+                  switch (dataType) {
+                    case MMS:
+                      updateMaxSyncedDateMms(result.maxDate);
+                      smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
+                      break;
+                    case SMS:
+                      updateMaxSyncedDateSms(result.maxDate);
+                      smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
+                      break;
+                    case CALLLOG:
+                      updateMaxSyncedDateCallLog(result.maxDate);
+                      if (callLogfolder != null) {
+                        callLogfolder.appendMessages(messages.toArray(new Message[messages.size()]));
                       }
-                  } else {
-                      switch (dataType) {
-                          case MMS:
-                              updateMaxSyncedDateMms(result.maxDate);
-                              smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
-                              break;
-                          case SMS:
-                              updateMaxSyncedDateSms(result.maxDate);
-                              smsmmsfolder.appendMessages(messages.toArray(new Message[messages.size()]));
-                              break;
-                          case CALLLOG:
-                              updateMaxSyncedDateCallLog(result.maxDate);
-                              if (callLogfolder != null) {
-                                  callLogfolder.appendMessages(messages.toArray(new Message[messages.size()]));
-                              }
-                              if (PrefStore.isCallLogCalendarSyncEnabled(context)) {
-                                  syncCalendar(converter, result);
-                              }
+                      if (PrefStore.isCallLogCalendarSyncEnabled(context)) {
+                        syncCalendar(converter, result);
                       }
+                      break;
                   }
                 }
 

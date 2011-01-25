@@ -302,10 +302,5 @@
               android:persistent="true"/>
 
         </PreferenceScreen>
-        <CheckBoxPreference android:key="enable_debug_mode"
-            android:title="@string/ui_enable_debug_mode_label"
-            android:summary="@string/ui_enable_debug_mode_desc"
-            android:persistent="true"
-            android:defaultValue="false"/>
     </PreferenceScreen>
 </PreferenceScreen>

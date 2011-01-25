@@ -116,8 +116,6 @@ public class PrefStore {
     static final String PREF_ENABLE_PGP_ENCRYPTION = "enable_pgp_encryption";
     static final String PREF_PGP_ENCRYPTION_KEY = "pgp_encryption_key";
 
-    static final String PREF_ENABLE_DEBUG_MODE = "enable_debug_mode";
-
     /** Default value for {@link PrefStore#PREF_MAX_SYNCED_DATE_SMS}. */
     static final long DEFAULT_MAX_SYNCED_DATE = -1;
 
@@ -161,9 +159,6 @@ public class PrefStore {
     /** Default value for {@link PrefStore#PREF_ENABLE_PGP_ENCRYPTION}. */
     static final boolean DEFAULT_ENABLE_PGP_ENCRYPTION = false;
 
-    /** Default value for {@link PrefStore#PREF_ENABLE_PGP_ENCRYPTION}. */
-    static final boolean DEFAULT_ENABLE_DEBUG_MODE = false;
-
     enum AuthMode            { PLAIN, XOAUTH }
     enum CallLogTypes        { EVERYTHING, MISSED, INCOMING, OUTGOING, INCOMING_OUTGOING }
     public enum AddressStyle { NAME, NAME_AND_NUMBER, NUMBER }
@@ -187,7 +182,7 @@ public class PrefStore {
     }
 
     static long getMaxSyncedDateSms(Context ctx) {
-        return isEnableDebugMode(ctx) ? DEFAULT_MAX_SYNCED_DATE : getSharedPreferences(ctx).getLong(PREF_MAX_SYNCED_DATE_SMS, DEFAULT_MAX_SYNCED_DATE);
+        return getSharedPreferences(ctx).getLong(PREF_MAX_SYNCED_DATE_SMS, DEFAULT_MAX_SYNCED_DATE);
     }
 
     static long getMaxSyncedDateMms(Context ctx) {
@@ -290,8 +285,6 @@ public class PrefStore {
     }
 
     static boolean isLoginInformationSet(Context ctx) {
-        if( isEnableDebugMode(ctx) ) return true;
-
         if (getAuthMode(ctx) == AuthMode.PLAIN) {
             return getImapPassword(ctx) != null && getImapUsername(ctx) != null;
         } else {
@@ -564,16 +557,6 @@ public class PrefStore {
     static void setPgpEncryptionKey(Context ctx, String pgpEncryptionKey) {
         getSharedPreferences(ctx).edit()
             .putString(PREF_PGP_ENCRYPTION_KEY, pgpEncryptionKey)
-            .commit();
-    }
-
-    static boolean isEnableDebugMode(Context ctx) {
-        return getSharedPreferences(ctx).getBoolean(PREF_ENABLE_DEBUG_MODE, DEFAULT_ENABLE_DEBUG_MODE);
-    }
-
-    static void setEnableDebugMode(Context ctx, boolean enable) {
-        getSharedPreferences(ctx).edit()
-            .putBoolean(PREF_ENABLE_DEBUG_MODE, enable)
             .commit();
     }
 

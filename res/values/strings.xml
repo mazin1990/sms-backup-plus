@@ -146,9 +146,6 @@
   <string name="ui_pgp_encryption_key_desc">Public key to encrypt data with.</string>
   <string name="ui_pgp_encryption_key_msg">If you loose the corrosponding private key, all your data is lost!</string>
 
-  <string name="ui_enable_debug_mode_label">Enable debug mode</string>
-  <string name="ui_enable_debug_mode_desc">No sync is happening, just log outputs</string>
-
   <string name="ui_backup_schedule_label">Schedule</string>
   <string name="ui_auto_backup_schedule_label">Regular schedule</string>
   <string name="ui_auto_backup_schedule_desc">When to backup SMS</string>
