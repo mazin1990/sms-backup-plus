@@ -70,6 +70,7 @@ import com.zegoggles.smssync.R;
 import com.zegoggles.smssync.ServiceBase.SmsSyncState;
 
 import org.thialfihar.android.apg.utils.ApgCon;
+import org.thialfihar.android.apg.utils.ApgConInterface;
 
 import static com.zegoggles.smssync.App.*;
 
@@ -323,7 +324,11 @@ public class SmsSync extends PreferenceActivity {
         if( apgCon.get_connection_status() == ApgCon.error.NO_ERROR ) {
             if (LOCAL_LOGV) Log.v(TAG, "APG found");
             apgCon.set_arg( "KEY_TYPE", 1 );
-            apgCon.set_callback( this, "setPgpEncryptionKeysPreference", true );
+            apgCon.set_onCallFinishListener( new ApgConInterface.OnCallFinishListener() {
+                public void onCallFinish( Bundle result ) {
+                    setPgpEncryptionKeysPreference( result );
+                }
+            });
             apgCon.call_async( "get_keys" );
         } else {
             if (LOCAL_LOGV) Log.v(TAG, "APG not found, error: "+apgCon.get_connection_status().name());
@@ -334,9 +339,8 @@ public class SmsSync extends PreferenceActivity {
         }
     }
 
-    public void setPgpEncryptionKeysPreference(ApgCon con) {
+    private void setPgpEncryptionKeysPreference(Bundle result) {
         ListPreference keys = (ListPreference) findPreference(PrefStore.PREF_PGP_ENCRYPTION_KEY);
-        Bundle result = con.get_result_bundle();
 
         List<String> fprints_l = result.getStringArrayList("FINGERPRINTS");
         CharSequence[] fprints_cs = fprints_l.toArray(new CharSequence[fprints_l.size()]);
