@@ -333,6 +333,7 @@ public class SmsSync extends PreferenceActivity {
 
     private void updatePgpEncryptionKeysFromApg() {
         final ListPreference keys = (ListPreference) findPreference(PrefStore.PREF_PGP_ENCRYPTION_KEY);
+        final CheckBoxPreference pgp_enabled = (CheckBoxPreference) findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION);
         keys.setEnabled( false );
         keys.setSummary(R.string.ui_pgp_encryption_key_updating_desc);
 
@@ -342,22 +343,31 @@ public class SmsSync extends PreferenceActivity {
             apgCon.set_arg( "KEY_TYPE", 1 );
             apgCon.set_onCallFinishListener( new ApgConInterface.OnCallFinishListener() {
                 public void onCallFinish( Bundle result ) {
-                    han.post(new Runnable() {
-                        @Override public void run() {
-                            keys.setEnabled( true );
-                            keys.setSummary(R.string.ui_pgp_encryption_key_desc);
-                        }
-                    });
-                    setPgpEncryptionKeysPreference( result );
+                    if( result.getStringArrayList("FINGERPRINTS").size() > 0 ) {
+                        setPgpEncryptionKeysPreference( result );
+                        han.post(new Runnable() {
+                            @Override public void run() {
+                                keys.setEnabled( true );
+                                keys.setSummary(R.string.ui_pgp_encryption_key_desc);
+                            }
+                        });
+                    } else {
+                        han.post(new Runnable() {
+                            @Override public void run() {
+                                keys.setSummary(R.string.ui_pgp_encryption_key_desc);
+                                pgp_enabled.setSummary(R.string.ui_enable_pgp_no_keys_found_desc);
+                                pgp_enabled.setChecked(false);
+                            }
+                        });
+                    }
                 }
             });
             apgCon.call_async( "get_keys" );
         } else {
             if (LOCAL_LOGV) Log.v(TAG, "APG not found, error: "+apgCon.get_connection_status().name());
-            CheckBoxPreference enable_pgp = (CheckBoxPreference) findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION);
-            enable_pgp.setChecked(false);
-            enable_pgp.setEnabled(false);
-            enable_pgp.setSummary(R.string.ui_enable_pgp_apg_not_found);
+            pgp_enabled.setChecked(false);
+            pgp_enabled.setEnabled(false);
+            pgp_enabled.setSummary(R.string.ui_enable_pgp_apg_not_found_desc);
         }
     }
 
