@@ -38,6 +38,7 @@ import android.app.PendingIntent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.net.ConnectivityManager;
 import android.text.TextUtils;
 import android.os.Build;
 import android.os.Bundle;
@@ -120,8 +121,9 @@ public class SmsSync extends PreferenceActivity {
 
         int version = Integer.parseInt(Build.VERSION.SDK);
         if (version < MIN_VERSION_MMS) {
-          Preference backupMms = findPreference("backup_mms");
+          CheckBoxPreference backupMms =  (CheckBoxPreference) findPreference(PrefStore.PREF_BACKUP_MMS);
           backupMms.setEnabled(false);
+          backupMms.setChecked(false);
           backupMms.setSummary(R.string.ui_backup_mms_not_supported);
         }
 
@@ -167,7 +169,8 @@ public class SmsSync extends PreferenceActivity {
         updateUsernameLabel(null);
         updateMaxItemsPerSync(null);
         updateMaxItemsPerRestore(null);
-        updatePgpEncryptionKeysFromApg();
+
+        if( PrefStore.isEnablePgpEncryption(this) ) updatePgpEncryptionKeysFromApg();
 
         statusPref.update();
 
@@ -210,6 +213,10 @@ public class SmsSync extends PreferenceActivity {
         statusPref.getLastSyncText(PrefStore.getMaxSyncedDateCallLog(this)));
     }
 
+    private ConnectivityManager getConnectivityManager() {
+      return (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+    }
+
     private void updateAutoBackupEnabledSummary() {
        final Preference enableAutoBackup = findPreference("enable_auto_sync");
        final List<String> enabled = new ArrayList();
@@ -218,8 +225,17 @@ public class SmsSync extends PreferenceActivity {
        if (PrefStore.isMmsBackupEnabled(this)) enabled.add(getString(R.string.mms));
        if (PrefStore.isCallLogBackupEnabled(this)) enabled.add(getString(R.string.calllog));
 
-       enableAutoBackup.setSummary(getString(R.string.ui_enable_auto_sync_summary,
-                                             TextUtils.join(", ", enabled)));
+       StringBuilder summary = new StringBuilder(
+        getString(R.string.ui_enable_auto_sync_summary, TextUtils.join(", ", enabled))
+       );
+
+       if (!getConnectivityManager().getBackgroundDataSetting())
+         summary.append(' ').append(getString(R.string.ui_enable_auto_sync_bg_data));
+
+       if (PrefStore.isInstalledOnSDCard(this))
+         summary.append(' ').append(getString(R.string.sd_card_disclaimer));
+
+       enableAutoBackup.setSummary(summary.toString());
 
        addSummaryListener(new Runnable() {
             public void run() { updateAutoBackupEnabledSummary(); }
@@ -316,21 +332,42 @@ public class SmsSync extends PreferenceActivity {
     }
 
     private void updatePgpEncryptionKeysFromApg() {
+        final ListPreference keys = (ListPreference) findPreference(PrefStore.PREF_PGP_ENCRYPTION_KEY);
+        final CheckBoxPreference pgp_enabled = (CheckBoxPreference) findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION);
+        keys.setEnabled( false );
+        keys.setSummary(R.string.ui_pgp_encryption_key_updating_desc);
+
         if( apgCon.get_connection_status() == ApgCon.error.NO_ERROR ) {
             if (LOCAL_LOGV) Log.v(TAG, "APG found");
+            final Handler han = new Handler();
             apgCon.set_arg( "KEY_TYPE", 1 );
             apgCon.set_onCallFinishListener( new ApgConInterface.OnCallFinishListener() {
                 public void onCallFinish( Bundle result ) {
-                    setPgpEncryptionKeysPreference( result );
+                    if( result.getStringArrayList("FINGERPRINTS").size() > 0 ) {
+                        setPgpEncryptionKeysPreference( result );
+                        han.post(new Runnable() {
+                            @Override public void run() {
+                                keys.setEnabled( true );
+                                keys.setSummary(R.string.ui_pgp_encryption_key_desc);
+                            }
+                        });
+                    } else {
+                        han.post(new Runnable() {
+                            @Override public void run() {
+                                keys.setSummary(R.string.ui_pgp_encryption_key_desc);
+                                pgp_enabled.setSummary(R.string.ui_enable_pgp_no_keys_found_desc);
+                                pgp_enabled.setChecked(false);
+                            }
+                        });
+                    }
                 }
             });
             apgCon.call_async( "get_keys" );
         } else {
             if (LOCAL_LOGV) Log.v(TAG, "APG not found, error: "+apgCon.get_connection_status().name());
-            CheckBoxPreference enable_pgp = (CheckBoxPreference) findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION);
-            enable_pgp.setChecked(false);
-            enable_pgp.setEnabled(false);
-            enable_pgp.setSummary(R.string.ui_enable_pgp_apg_not_found);
+            pgp_enabled.setChecked(false);
+            pgp_enabled.setEnabled(false);
+            pgp_enabled.setSummary(R.string.ui_enable_pgp_apg_not_found_desc);
         }
     }
 
@@ -1093,5 +1130,19 @@ public class SmsSync extends PreferenceActivity {
               }
             }
         });
+
+        prefMgr.findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION)
+               .setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
+            public boolean onPreferenceChange(Preference preference, final Object newValue) {
+              boolean enabled = (Boolean) newValue;
+
+              if (enabled) {
+                  updatePgpEncryptionKeysFromApg();
+              }
+
+              return true;
+            }
+        });
+
     }
 }

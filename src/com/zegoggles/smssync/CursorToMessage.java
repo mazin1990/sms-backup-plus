@@ -243,6 +243,7 @@ public class CursorToMessage {
             PersonRecord record = lookupPerson(getHeader(message, Headers.ADDRESS));
             if (!record.unknown) {
               values.put(CallLog.Calls.CACHED_NAME, record.name);
+              values.put(CallLog.Calls.CACHED_NUMBER_TYPE, -2);
             }
 
             break;

@@ -133,17 +133,23 @@
 
   <string name="ui_enable_auto_sync_label">Auto backup</string>
   <string name="ui_enable_auto_sync_desc">Whether to automatically backup new SMS or not.</string>
-  <string name="ui_enable_auto_sync_summary">Automatically backup %1$s. Auto backup might not work reliably when app is installed on SD card.</string>
+  <string name="ui_enable_auto_sync_summary">Automatically backup %1$s.</string>
+
+  <string name="sd_card_disclaimer">Auto backup might not work reliably when app is installed on SD card.</string>
+
+  <string name="ui_enable_auto_sync_bg_data">You will also need to enable background data.</string>
 
   <string name="ui_settings_encryption_label">Encryption settings</string>
   <string name="ui_settings_encryption_desc">Encrypt data with APG.</string>
 
   <string name="ui_enable_pgp_encryption_label">PGP Encryption</string>
   <string name="ui_enable_pgp_encryption_desc">Encrypt data with APG.</string>
-  <string name="ui_enable_pgp_apg_not_found">Not possible: APG not found.</string>
+  <string name="ui_enable_pgp_apg_not_found_desc">Not possible: APG not found.</string>
+  <string name="ui_enable_pgp_no_keys_found_desc">No private/public key-pair found, please add one to APG.</string>
 
-  <string name="ui_pgp_encryption_key_label">Public key</string>
-  <string name="ui_pgp_encryption_key_desc">Public key to encrypt data with.</string>
+  <string name="ui_pgp_encryption_key_label">Encryption key</string>
+  <string name="ui_pgp_encryption_key_desc">Key to encrypt data with.</string>
+  <string name="ui_pgp_encryption_key_updating_desc">Fetching keys...</string>
   <string name="ui_pgp_encryption_key_msg">If you loose the corrosponding private key, all your data is lost!</string>
 
   <string name="ui_backup_schedule_label">Schedule</string>
