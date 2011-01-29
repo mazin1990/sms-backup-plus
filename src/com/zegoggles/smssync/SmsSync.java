@@ -167,7 +167,8 @@ public class SmsSync extends PreferenceActivity {
         updateUsernameLabel(null);
         updateMaxItemsPerSync(null);
         updateMaxItemsPerRestore(null);
-        updatePgpEncryptionKeysFromApg();
+
+        if( PrefStore.isEnablePgpEncryption(this) ) updatePgpEncryptionKeysFromApg();
 
         statusPref.update();
 
@@ -316,11 +317,22 @@ public class SmsSync extends PreferenceActivity {
     }
 
     private void updatePgpEncryptionKeysFromApg() {
+        final ListPreference keys = (ListPreference) findPreference(PrefStore.PREF_PGP_ENCRYPTION_KEY);
+        keys.setEnabled( false );
+        keys.setSummary(R.string.ui_pgp_encryption_key_updating_desc);
+
         if( apgCon.get_connection_status() == ApgCon.error.NO_ERROR ) {
             if (LOCAL_LOGV) Log.v(TAG, "APG found");
+            final Handler han = new Handler();
             apgCon.set_arg( "KEY_TYPE", 1 );
             apgCon.set_onCallFinishListener( new ApgConInterface.OnCallFinishListener() {
                 public void onCallFinish( Bundle result ) {
+                    han.post(new Runnable() {
+                        @Override public void run() {
+                            keys.setEnabled( true );
+                            keys.setSummary(R.string.ui_pgp_encryption_key_desc);
+                        }
+                    });
                     setPgpEncryptionKeysPreference( result );
                 }
             });
@@ -1089,5 +1101,19 @@ public class SmsSync extends PreferenceActivity {
               }
             }
         });
+
+        prefMgr.findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION)
+               .setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
+            public boolean onPreferenceChange(Preference preference, final Object newValue) {
+              boolean enabled = (Boolean) newValue;
+
+              if (enabled) {
+                  updatePgpEncryptionKeysFromApg();
+              }
+
+              return true;
+            }
+        });
+
     }
 }
