@@ -38,6 +38,7 @@ import android.app.PendingIntent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.net.ConnectivityManager;
 import android.text.TextUtils;
 import android.os.Build;
 import android.os.Bundle;
@@ -120,8 +121,9 @@ public class SmsSync extends PreferenceActivity {
 
         int version = Integer.parseInt(Build.VERSION.SDK);
         if (version < MIN_VERSION_MMS) {
-          Preference backupMms = findPreference("backup_mms");
+          CheckBoxPreference backupMms =  (CheckBoxPreference) findPreference(PrefStore.PREF_BACKUP_MMS);
           backupMms.setEnabled(false);
+          backupMms.setChecked(false);
           backupMms.setSummary(R.string.ui_backup_mms_not_supported);
         }
 
@@ -211,6 +213,10 @@ public class SmsSync extends PreferenceActivity {
         statusPref.getLastSyncText(PrefStore.getMaxSyncedDateCallLog(this)));
     }
 
+    private ConnectivityManager getConnectivityManager() {
+      return (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+    }
+
     private void updateAutoBackupEnabledSummary() {
        final Preference enableAutoBackup = findPreference("enable_auto_sync");
        final List<String> enabled = new ArrayList();
@@ -219,8 +225,17 @@ public class SmsSync extends PreferenceActivity {
        if (PrefStore.isMmsBackupEnabled(this)) enabled.add(getString(R.string.mms));
        if (PrefStore.isCallLogBackupEnabled(this)) enabled.add(getString(R.string.calllog));
 
-       enableAutoBackup.setSummary(getString(R.string.ui_enable_auto_sync_summary,
-                                             TextUtils.join(", ", enabled)));
+       StringBuilder summary = new StringBuilder(
+        getString(R.string.ui_enable_auto_sync_summary, TextUtils.join(", ", enabled))
+       );
+
+       if (!getConnectivityManager().getBackgroundDataSetting())
+         summary.append(' ').append(getString(R.string.ui_enable_auto_sync_bg_data));
+
+       if (PrefStore.isInstalledOnSDCard(this))
+         summary.append(' ').append(getString(R.string.sd_card_disclaimer));
+
+       enableAutoBackup.setSummary(summary.toString());
 
        addSummaryListener(new Runnable() {
             public void run() { updateAutoBackupEnabledSummary(); }
@@ -907,6 +922,7 @@ public class SmsSync extends PreferenceActivity {
     }
 
     class OAuthCallbackTask extends AsyncTask<Intent, Void, XOAuthConsumer> {
+        private final Context mContext = SmsSync.this;
 
         @Override
         protected void onPreExecute() {
@@ -918,8 +934,8 @@ public class SmsSync extends PreferenceActivity {
             Uri uri = callbackIntent[0].getData();
             if (LOCAL_LOGV) Log.v(TAG, "oauth callback: " + uri);
 
-            XOAuthConsumer consumer = PrefStore.getOAuthConsumer(SmsSync.this);
-            CommonsHttpOAuthProvider provider = consumer.getProvider(SmsSync.this);
+            XOAuthConsumer consumer = PrefStore.getOAuthConsumer(mContext);
+            CommonsHttpOAuthProvider provider = consumer.getProvider(mContext);
             String verifier = uri.getQueryParameter(OAuth.OAUTH_VERIFIER);
             try {
                 provider.retrieveAccessToken(consumer, verifier);
@@ -943,15 +959,18 @@ public class SmsSync extends PreferenceActivity {
 
         @Override
         protected void onPostExecute(XOAuthConsumer consumer) {
+            if (LOCAL_LOGV)
+              Log.v(TAG, String.format("%s#onPostExecute(%s)", getClass().getName(), consumer));
+
             dismiss(Dialogs.ACCESS_TOKEN);
             if (consumer != null) {
-                PrefStore.setOauthUsername(SmsSync.this, consumer.getUsername());
-                PrefStore.setOauthTokens(SmsSync.this, consumer.getToken(), consumer.getTokenSecret());
+                PrefStore.setOauthUsername(mContext, consumer.getUsername());
+                PrefStore.setOauthTokens(mContext, consumer.getToken(), consumer.getTokenSecret());
 
                 updateConnected();
 
                 // Invite use to perform a backup, but only once
-                if (PrefStore.isFirstUse(SmsSync.this)) {
+                if (PrefStore.isFirstUse(mContext)) {
                     show(Dialogs.FIRST_SYNC);
                 }
             } else {

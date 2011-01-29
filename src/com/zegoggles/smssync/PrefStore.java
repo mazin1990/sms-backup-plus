@@ -24,6 +24,9 @@ import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.provider.CallLog;
 
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+
 import static com.zegoggles.smssync.ContactAccessor.ContactGroup;
 import static com.zegoggles.smssync.App.*;
 
@@ -246,7 +249,8 @@ public class PrefStore {
     }
 
     static boolean hasOauthTokens(Context ctx) {
-        return getOauthToken(ctx) != null &&
+        return getOauthUsername(ctx) != null &&
+               getOauthToken(ctx) != null &&
                getOauthTokenSecret(ctx) != null;
     }
 
@@ -591,11 +595,25 @@ public class PrefStore {
       try {
         pInfo = context.getPackageManager().getPackageInfo(
                 SmsSync.class.getPackage().getName(),
-                android.content.pm.PackageManager.GET_META_DATA);
+                PackageManager.GET_META_DATA);
         return ""+ (code ? pInfo.versionCode : pInfo.versionName);
-      } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+      } catch (PackageManager.NameNotFoundException e) {
         Log.e(TAG, "error", e);
         return null;
+      }
+    }
+
+    static boolean isInstalledOnSDCard(Context context) {
+      android.content.pm.PackageInfo pInfo = null;
+      try {
+        pInfo = context.getPackageManager().getPackageInfo(
+                SmsSync.class.getPackage().getName(),
+                PackageManager.GET_META_DATA);
+
+        return (pInfo.applicationInfo.flags & ApplicationInfo.FLAG_EXTERNAL_STORAGE) != 0;
+      } catch (PackageManager.NameNotFoundException e) {
+        Log.e(TAG, "error", e);
+        return false;
       }
     }
 
