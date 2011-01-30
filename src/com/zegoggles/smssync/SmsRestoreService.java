@@ -1,6 +1,9 @@
 package com.zegoggles.smssync;
 
+import android.app.Dialog;
+import android.app.AlertDialog;
 import android.content.ContentValues;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
@@ -40,7 +43,6 @@ public class SmsRestoreService extends ServiceBase {
     private static boolean sIsRunning = false;
     private static boolean sCanceled = false;
     private static boolean sWait = false;
-    private static String currentPgpKey = null;
     private static boolean lastPgpKeyWasWrong = false;
     private static boolean waitForPgpPassphrase = true;
     private static final Map<String,String> pgpKeyPassphrases = new HashMap<String,String>();
@@ -72,12 +74,8 @@ public class SmsRestoreService extends ServiceBase {
         return sItemsToRestoreCount;
     }
 
-    public static void putPgpPassphrase( String pass ) {
-        pgpKeyPassphrases.put( currentPgpKey, pass );
-    }
-
-    public static void skipCurrentPgpKey() {
-        pgpKeysToSkip.add( currentPgpKey );
+    public static void putPgpPassphrase( String key, String pass ) {
+        pgpKeyPassphrases.put( key, pass );
     }
 
     public static void setWaitForPgpPassphrase( boolean val ) {
@@ -185,12 +183,79 @@ public class SmsRestoreService extends ServiceBase {
             sCanceled = false;
             sIsRunning = false;
             pgpKeysToSkip.clear();
+            lastPgpKeyWasWrong = false;
         }
 
         @Override protected void onProgressUpdate(SmsSyncState... progress) {
           if (progress == null || progress.length == 0) return;
           if (smsSync != null) smsSync.statusPref.stateChanged(progress[0]);
           sState = progress[0];
+        }
+
+        private AlertDialog.Builder getPgpPrivateKeyMissingDialog() {
+                String title = getString(R.string.ui_dialog_private_key_missing_title);
+                String msg = getString(R.string.ui_dialog_private_key_missing_msg);
+                return new AlertDialog.Builder(smsSync)
+                    .setTitle(getString(R.string.ui_dialog_private_key_missing_title))
+                    .setMessage(getString(R.string.ui_dialog_private_key_missing_msg))
+                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                        @Override public void onClick(DialogInterface dialog, int which) {
+                            dialog.cancel();
+                        }
+                    });
+        }
+
+        private AlertDialog.Builder getAskForPgpPassphraseDialog( final String key, boolean last_key_wrong ) {
+
+            AlertDialog.Builder alert = new AlertDialog.Builder(smsSync);                 
+
+            alert.setTitle(getString(R.string.ui_dialog_ask_pgp_passphrase_title));
+
+            String defaultMsg = getString(R.string.ui_dialog_ask_pgp_passphrase_msg)+" "+key;
+            if( last_key_wrong ) {
+                alert.setMessage(defaultMsg+ "\n\n"+getString(R.string.ui_dialog_ask_pgp_passphrase_last_key_wrong));
+            } else {
+                alert.setMessage(defaultMsg);
+            }
+
+            final android.widget.EditText input = new android.widget.EditText(smsSync); 
+            input.setTransformationMethod( new android.text.method.PasswordTransformationMethod() );
+            alert.setView(input);
+
+            alert.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {  
+                public void onClick(DialogInterface dialog, int whichButton) {  
+                    String value = input.getText().toString();
+                    putPgpPassphrase( key, value );
+                    return;
+                }  
+            });  
+
+            alert.setNegativeButton(getString(android.R.string.cancel), new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int which) {
+                    SmsRestoreService.cancel();
+                    return;
+                }
+            });
+
+            alert.setNeutralButton(getString(R.string.ui_dialog_ask_pgp_passphrase_button_skip_this_key), new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int which) {
+                    pgpKeysToSkip.add( key );
+                    return;
+                }
+            });
+
+            return alert;
+
+            /*
+            AlertDialog diag = alert.create();
+            diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
+                public void onDismiss(DialogInterface dialog) {
+                    setWaitForPgpPassphrase( false );
+                }
+            });
+
+            return diag;
+            */
         }
 
         private void updateAllThreads(final boolean async) {
@@ -276,13 +341,17 @@ public class SmsRestoreService extends ServiceBase {
                         }
                         Log.v( TAG, "Will ask for passphrase for key "+encryption_key );
                         waitForPgpPassphrase = true;
-                        currentPgpKey = encryption_key;
-                        final Bundle diagArgs = new Bundle();
-                        diagArgs.putString( "key", encryption_key );
-                        diagArgs.putBoolean( "last_key_was_wrong", lastPgpKeyWasWrong );
-                        mHandler.post( new Runnable() {
-                            public void run() {
-                                smsSync.showDialog(SmsSync.Dialogs.ASK_PGP_PASSPHRASE.ordinal(), diagArgs);
+
+                        final AlertDialog.Builder ask = getAskForPgpPassphraseDialog( encryption_key, lastPgpKeyWasWrong );
+                        smsSync.runOnUiThread(new Runnable() {
+                            public void run() { 
+                                AlertDialog diag = ask.create();
+                                diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
+                                    public void onDismiss(DialogInterface dialog) {
+                                        setWaitForPgpPassphrase( false );
+                                    }
+                                });
+                                diag.show();
                             }
                         });
 
@@ -295,12 +364,12 @@ public class SmsRestoreService extends ServiceBase {
 
                     if( sCanceled ) {
                         Log.v(TAG, "User canceled on entering passphrase" );
-                        lastPgpKeyWasWrong = false; // reset it to not show up on next restore
                         return;
                     }
 
                     if( pgpKeysToSkip.contains( encryption_key ) ) {
                         Log.v(TAG, "User wants to skip this key" );
+                        lastPgpKeyWasWrong = false; // reset it to not show up on next restore
                         return;
                     }
 
@@ -327,9 +396,17 @@ public class SmsRestoreService extends ServiceBase {
 
                         if( mEnc.get_error() == 102 ) { // no matching private key found, show dialog about this and skip the key
                             sWait = true; // wait until user closes the following dialog
-                            mHandler.post( new Runnable() {
-                                public void run() {
-                                    smsSync.show(SmsSync.Dialogs.PRIVATE_KEY_MISSING);
+
+                            final AlertDialog.Builder missing = getPgpPrivateKeyMissingDialog();
+                            smsSync.runOnUiThread(new Runnable() {
+                                public void run() { 
+                                    AlertDialog diag = missing.create();
+                                    diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
+                                        public void onDismiss(DialogInterface dialog) {
+                                            SmsRestoreService.goOn();
+                                        }
+                                    });
+                                    diag.show();
                                 }
                             });
                             pgpKeysToSkip.add( encryption_key );
