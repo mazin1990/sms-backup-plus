@@ -254,7 +254,7 @@ public class SmsRestoreService extends ServiceBase {
                 Log.d( TAG, "pgp header is: "+pgp_header);
 
                 String encryption_key = null;
-                if( pgp_header != null && pgp_header != "none" ) {
+                if( pgp_header != null ) {
                     encryption_key = pgp_header;
 
                     if( mEnc == null ) {

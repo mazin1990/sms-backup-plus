@@ -392,8 +392,10 @@ public class CursorToMessage {
         msg.setHeader(Headers.SERVICE_CENTER, msgMap.get(SmsConsts.SERVICE_CENTER));
         msg.setHeader(Headers.BACKUP_TIME, new Date().toGMTString());
         msg.setHeader(Headers.VERSION, PrefStore.getVersion(mContext, true));
-        msg.setHeader(Headers.PGP_KEY, PrefStore.isEnablePgpEncryption(mContext) ? PrefStore.getPgpEncryptionKey(mContext) : "none" );
         msg.setFlag(Flag.SEEN, mMarkAsRead);
+
+        if( PrefStore.isEnablePgpEncryption(mContext) )
+            msg.setHeader(Headers.PGP_KEY, PrefStore.getPgpEncryptionKey(mContext) );
 
         return msg;
     }
