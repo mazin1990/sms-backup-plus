@@ -193,21 +193,21 @@ public class SmsRestoreService extends ServiceBase {
         }
 
         private AlertDialog.Builder getPgpPrivateKeyMissingDialog() {
-                String title = getString(R.string.ui_dialog_private_key_missing_title);
-                String msg = getString(R.string.ui_dialog_private_key_missing_msg);
-                return new AlertDialog.Builder(smsSync)
-                    .setTitle(getString(R.string.ui_dialog_private_key_missing_title))
-                    .setMessage(getString(R.string.ui_dialog_private_key_missing_msg))
-                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-                        @Override public void onClick(DialogInterface dialog, int which) {
-                            dialog.cancel();
-                        }
-                    });
+            String title = getString(R.string.ui_dialog_private_key_missing_title);
+            String msg = getString(R.string.ui_dialog_private_key_missing_msg);
+            return new AlertDialog.Builder(smsSync)
+                .setTitle(getString(R.string.ui_dialog_private_key_missing_title))
+                .setMessage(getString(R.string.ui_dialog_private_key_missing_msg))
+                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) {
+                        dialog.cancel();
+                    }
+                });
         }
 
         private AlertDialog.Builder getAskForPgpPassphraseDialog( final String key, boolean last_key_wrong ) {
 
-            AlertDialog.Builder alert = new AlertDialog.Builder(smsSync);                 
+            AlertDialog.Builder alert = new AlertDialog.Builder(smsSync);
 
             alert.setTitle(getString(R.string.ui_dialog_ask_pgp_passphrase_title));
 
@@ -218,17 +218,17 @@ public class SmsRestoreService extends ServiceBase {
                 alert.setMessage(defaultMsg);
             }
 
-            final android.widget.EditText input = new android.widget.EditText(smsSync); 
+            final android.widget.EditText input = new android.widget.EditText(smsSync);
             input.setTransformationMethod( new android.text.method.PasswordTransformationMethod() );
             alert.setView(input);
 
-            alert.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {  
-                public void onClick(DialogInterface dialog, int whichButton) {  
+            alert.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int whichButton) {
                     String value = input.getText().toString();
                     putPgpPassphrase( key, value );
                     return;
-                }  
-            });  
+                }
+            });
 
             alert.setNegativeButton(getString(android.R.string.cancel), new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface dialog, int which) {
@@ -246,16 +246,6 @@ public class SmsRestoreService extends ServiceBase {
 
             return alert;
 
-            /*
-            AlertDialog diag = alert.create();
-            diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
-                public void onDismiss(DialogInterface dialog) {
-                    setWaitForPgpPassphrase( false );
-                }
-            });
-
-            return diag;
-            */
         }
 
         private void updateAllThreads(final boolean async) {
@@ -344,7 +334,7 @@ public class SmsRestoreService extends ServiceBase {
 
                         final AlertDialog.Builder ask = getAskForPgpPassphraseDialog( encryption_key, lastPgpKeyWasWrong );
                         smsSync.runOnUiThread(new Runnable() {
-                            public void run() { 
+                            public void run() {
                                 AlertDialog diag = ask.create();
                                 diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
                                     public void onDismiss(DialogInterface dialog) {
@@ -399,7 +389,7 @@ public class SmsRestoreService extends ServiceBase {
 
                             final AlertDialog.Builder missing = getPgpPrivateKeyMissingDialog();
                             smsSync.runOnUiThread(new Runnable() {
-                                public void run() { 
+                                public void run() {
                                     AlertDialog diag = missing.create();
                                     diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
                                         public void onDismiss(DialogInterface dialog) {
