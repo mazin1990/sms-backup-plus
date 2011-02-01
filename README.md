@@ -132,7 +132,7 @@ disabled.
 ## <a name="faq">FAQ</a>
 
 <a name="browser-bug"/>
-### <a name="faq-browser">When connecting, I get the message "You do do not have permission to open this page"</a>
+### <a name="faq-browser">After granting access I get the message "You do do not have permission to open this page"</a>
 
 Some browsers / handsets which ship with non-standard browsers are
 currently not fully supported, there appears to be a problem which breaks
@@ -147,7 +147,7 @@ Some possible workarounds:
   * Use plain text authentication (Advanced Settings - Server Settings), use
   your gmail address as username and supply your password
 
-### <a name="faq-browser">After connecting, the Messaging app opens.</a>
+### <a name="faq-browser">After granting access, the Messaging app opens.</a>
 
 See the answer to the previous question, it's the same problem.
 
@@ -244,6 +244,7 @@ repository and send me a [pull request](http://help.github.com/pull-requests/).
   * [Ben Dodson](http://github.com/bjdodson) - Contacts 2.0 / MMS support
   * [Felix Knecht](http://github.com/dicer) - Call log backup code
   * [k9mail](http://code.google.com/p/k9mail/) IMAP library, with some modifications ([k9mail/sms-backup-plus](http://github.com/jberkel/k9mail))
+  * [acra](http://code.google.com/p/acra) ACRA - Application Crash Report for Android
   * [signpost](http://github.com/kaeppler/signpost) Signpost OAuth library
   * Jeffrey F. Cole - [NumberPicker.java][]
   * [iTweek](http://itweek.deviantart.com/) and [ncrow](http://ncrow.deviantart.com/) for the Gmail icons
