@@ -16,25 +16,17 @@
 
 package com.zegoggles.smssync;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.Date;
-import java.util.Map;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Arrays;
 
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.app.Dialog;
-import android.app.AlertDialog.Builder;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.app.PendingIntent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -47,7 +39,6 @@ import android.os.AsyncTask;
 import android.preference.Preference;
 import android.preference.CheckBoxPreference;
 import android.preference.PreferenceActivity;
-import android.preference.PreferenceScreen;
 import android.preference.PreferenceManager;
 import android.preference.ListPreference;
 import android.preference.Preference.OnPreferenceChangeListener;
@@ -67,7 +58,6 @@ import android.widget.TextView;
 import oauth.signpost.OAuth;
 import oauth.signpost.commonshttp.CommonsHttpOAuthProvider;
 
-import com.zegoggles.smssync.R;
 import com.zegoggles.smssync.ServiceBase.SmsSyncState;
 
 import org.thialfihar.android.apg.utils.ApgCon;
@@ -93,7 +83,6 @@ public class SmsSync extends PreferenceActivity {
       REQUEST_TOKEN,
       ACCESS_TOKEN,
       ACCESS_TOKEN_ERROR,
-      REQUEST_TOKEN_ERROR,
       CONNECT,
       CONNECT_TOKEN_ERROR,
       UPGRADE,
@@ -105,8 +94,7 @@ public class SmsSync extends PreferenceActivity {
     private Donations donations = new Donations(this);
     private ApgCon apgCon;
 
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
+    @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         ServiceBase.smsSync = this;
 
@@ -138,8 +126,7 @@ public class SmsSync extends PreferenceActivity {
         }
     }
 
-    @Override
-    public void onNewIntent(Intent intent) {
+    @Override public void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         Uri uri = intent.getData();
         if (uri != null && uri.toString().startsWith(Consts.CALLBACK_URL) &&
@@ -148,12 +135,9 @@ public class SmsSync extends PreferenceActivity {
         }
     }
 
-    @Override
-    protected void onResume() {
+    @Override protected void onResume() {
         super.onResume();
         ServiceBase.smsSync = this;
-
-        apgCon = new ApgCon(this);
 
         initCalendarAndGroups();
 
@@ -167,29 +151,25 @@ public class SmsSync extends PreferenceActivity {
         updateUsernameLabel(null);
         updateMaxItemsPerSync(null);
         updateMaxItemsPerRestore(null);
-
-        if( PrefStore.isEnablePgpEncryption(this) ) updatePgpEncryptionKeysFromApg();
+        if (PrefStore.isEnablePgpEncryption(this)) updatePgpEncryptionKeysFromApg();
 
         statusPref.update();
 
         updateImapSettings(!PrefStore.useXOAuth(this));
     }
 
-    @Override
-    protected void onPause() {
+    @Override protected void onPause() {
         super.onPause();
-        apgCon.disconnect();
+        if (apgCon != null) apgCon.disconnect();
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
+    @Override public boolean onCreateOptionsMenu(Menu menu) {
         android.view.MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.menu, menu);
         return true;
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
+    @Override public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.menu_about:
                 show(Dialogs.ABOUT);
@@ -217,7 +197,7 @@ public class SmsSync extends PreferenceActivity {
 
     private void updateAutoBackupEnabledSummary() {
        final Preference enableAutoBackup = findPreference("enable_auto_sync");
-       final List<String> enabled = new ArrayList();
+       final List<String> enabled = new ArrayList<String>();
 
        if (PrefStore.isSmsBackupEnabled(this)) enabled.add(getString(R.string.sms));
        if (PrefStore.isMmsBackupEnabled(this)) enabled.add(getString(R.string.mms));
@@ -281,7 +261,7 @@ public class SmsSync extends PreferenceActivity {
             new OnPreferenceChangeListener() {
               public boolean onPreferenceChange(Preference preference, final Object newValue) {
                  new Handler().post(new Runnable() {
-                   @Override public void run() {
+                    public void run() {
                       r.run();
                       onContentChanged();
                    }
@@ -329,43 +309,47 @@ public class SmsSync extends PreferenceActivity {
         pref.setTitle(imapFolder);
     }
 
-    private void updatePgpEncryptionKeysFromApg() {
+    private boolean updatePgpEncryptionKeysFromApg() {
         final ListPreference keys = (ListPreference) findPreference(PrefStore.PREF_PGP_ENCRYPTION_KEY);
-        final CheckBoxPreference pgp_enabled = (CheckBoxPreference) findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION);
-        keys.setEnabled( false );
-        keys.setSummary(R.string.ui_pgp_encryption_key_updating_desc);
+        final CheckBoxPreference pgpEnabled = (CheckBoxPreference) findPreference(PrefStore.PREF_ENABLE_PGP_ENCRYPTION);
+        keys.setEnabled(false);
 
-        if( apgCon.get_connection_status() == ApgCon.error.NO_ERROR ) {
+        if (apgCon == null ) apgCon = new ApgCon(this);
+        if (apgCon.get_connection_status() == ApgCon.error.NO_ERROR ) {
             if (LOCAL_LOGV) Log.v(TAG, "APG found");
-            final Handler han = new Handler();
-            apgCon.set_arg( "KEY_TYPE", 1 );
-            apgCon.set_onCallFinishListener( new ApgConInterface.OnCallFinishListener() {
-                public void onCallFinish( Bundle result ) {
-                    if( result.getStringArrayList("FINGERPRINTS").size() > 0 ) {
+            keys.setSummary(R.string.ui_pgp_encryption_key_updating_desc);
+
+            final Handler handler = new Handler();
+            apgCon.set_arg("KEY_TYPE", 1);
+            apgCon.set_onCallFinishListener(new ApgConInterface.OnCallFinishListener() {
+                public void onCallFinish(Bundle result) {
+                    if( result != null && result.getStringArrayList("FINGERPRINTS").size() > 0 ) {
                         setPgpEncryptionKeysPreference( result );
-                        han.post(new Runnable() {
-                            @Override public void run() {
-                                keys.setEnabled( true );
+                        handler.post(new Runnable() {
+                            public void run() {
+                                keys.setEnabled(true);
                                 keys.setSummary(R.string.ui_pgp_encryption_key_desc);
                             }
                         });
                     } else {
-                        han.post(new Runnable() {
-                            @Override public void run() {
+                        handler.post(new Runnable() {
+                            public void run() {
                                 keys.setSummary(R.string.ui_pgp_encryption_key_desc);
-                                pgp_enabled.setSummary(R.string.ui_enable_pgp_no_keys_found_desc);
-                                pgp_enabled.setChecked(false);
+                                pgpEnabled.setSummary(R.string.ui_enable_pgp_no_keys_found_desc);
+                                pgpEnabled.setChecked(false);
                             }
                         });
                     }
                 }
             });
-            apgCon.call_async( "get_keys" );
+            apgCon.call_async("get_keys");
+            return true;
         } else {
             if (LOCAL_LOGV) Log.v(TAG, "APG not found, error: "+apgCon.get_connection_status().name());
-            pgp_enabled.setChecked(false);
-            pgp_enabled.setEnabled(false);
-            pgp_enabled.setSummary(R.string.ui_enable_pgp_apg_not_found_desc);
+            pgpEnabled.setChecked(false);
+            pgpEnabled.setEnabled(false);
+            pgpEnabled.setSummary(R.string.ui_enable_pgp_apg_not_found_desc);
+            return false;
         }
     }
 
@@ -472,7 +456,7 @@ public class SmsSync extends PreferenceActivity {
         }
 
         private void finishedBackup() {
-            int backedUpCount = SmsBackupService.getCurrentSyncedItems();
+            int backedUpCount = SmsBackupService.currentSyncedItems;
             String text = null;
             if (backedUpCount == PrefStore.getMaxItemsPerSync(getContext())) {
                 text = getString(R.string.status_backup_done_details_max_per_sync, backedUpCount);
@@ -492,9 +476,9 @@ public class SmsSync extends PreferenceActivity {
             mStatusLabel.setText(R.string.status_done);
             mSyncDetailsLabel.setText(getResources().getQuantityString(
                   R.plurals.status_restore_done_details,
-                  SmsRestoreService.sRestoredCount,
-                  SmsRestoreService.sRestoredCount,
-                  SmsRestoreService.sDuplicateCount));
+                  SmsRestoreService.restoredCount,
+                  SmsRestoreService.restoredCount,
+                  SmsRestoreService.duplicateCount));
         }
 
         private void idle() {
@@ -528,12 +512,12 @@ public class SmsSync extends PreferenceActivity {
                     mStatusLabel.setText(R.string.status_backup);
 
                     mSyncDetailsLabel.setText(getString(R.string.status_backup_details,
-                            SmsBackupService.getCurrentSyncedItems(),
-                            SmsBackupService.getItemsToSyncCount()));
+                            SmsBackupService.currentSyncedItems,
+                            SmsBackupService.itemsToSync));
 
                     mProgressBar.setIndeterminate(false);
-                    mProgressBar.setProgress(SmsBackupService.getCurrentSyncedItems());
-                    mProgressBar.setMax(SmsBackupService.getItemsToSyncCount());
+                    mProgressBar.setProgress(SmsBackupService.currentSyncedItems);
+                    mProgressBar.setMax(SmsBackupService.itemsToSync);
                     break;
                 case RESTORE:
                     mSyncButton.setEnabled(false);
@@ -542,12 +526,12 @@ public class SmsSync extends PreferenceActivity {
                     mStatusLabel.setText(R.string.status_restore);
 
                     mSyncDetailsLabel.setText(getString(R.string.status_restore_details,
-                              SmsRestoreService.getCurrentRestoredItems(),
-                              SmsRestoreService.getItemsToRestoreCount()));
+                            SmsRestoreService.currentRestoredItems,
+                            SmsRestoreService.itemsToRestoreCount));
 
                     mProgressBar.setIndeterminate(false);
-                    mProgressBar.setProgress(SmsRestoreService.getCurrentRestoredItems());
-                    mProgressBar.setMax(SmsRestoreService.getItemsToRestoreCount());
+                    mProgressBar.setProgress(SmsRestoreService.currentRestoredItems);
+                    mProgressBar.setMax(SmsRestoreService.itemsToRestoreCount);
                     break;
                 case UPDATING_THREADS:
                     mProgressBar.setIndeterminate(true);
@@ -564,15 +548,15 @@ public class SmsSync extends PreferenceActivity {
                     mStatusLabel.setText(R.string.status_canceled);
 
                     mSyncDetailsLabel.setText(getString(R.string.status_canceled_details,
-                        SmsBackupService.getCurrentSyncedItems(),
-                        SmsBackupService.getItemsToSyncCount()));
+                            SmsBackupService.currentSyncedItems,
+                            SmsBackupService.itemsToSync));
                     break;
                 case CANCELED_RESTORE:
                     mStatusLabel.setText(R.string.status_canceled);
 
                     mSyncDetailsLabel.setText(getString(R.string.status_restore_canceled_details,
-                        SmsRestoreService.getCurrentRestoredItems(),
-                        SmsRestoreService.getItemsToRestoreCount()));
+                            SmsRestoreService.currentRestoredItems,
+                            SmsRestoreService.itemsToRestoreCount));
                     break;
               }
           }
@@ -610,7 +594,7 @@ public class SmsSync extends PreferenceActivity {
 
         @Override public void onClick(View v) {
             if (v == mSyncButton) {
-                if (!SmsBackupService.isWorking()) {
+                if (!SmsBackupService.isRunning) {
                     if (LOCAL_LOGV) Log.v(TAG, "user requested sync");
                     initiateSync();
                 } else {
@@ -618,16 +602,16 @@ public class SmsSync extends PreferenceActivity {
                     // Sync button will be restored on next status update.
                     mSyncButton.setText(R.string.ui_sync_button_label_canceling);
                     mSyncButton.setEnabled(false);
-                    SmsBackupService.cancel();
+                    SmsBackupService.canceled = true;
                 }
             } else if (v == mRestoreButton) {
                 if (LOCAL_LOGV) Log.v(TAG, "restore");
-                if (!SmsRestoreService.isWorking()) {
+                if (!SmsRestoreService.isRunning) {
                     initiateRestore();
                 } else {
                     mRestoreButton.setText(R.string.ui_sync_button_label_canceling);
                     mRestoreButton.setEnabled(false);
-                    SmsRestoreService.cancel();
+                    SmsRestoreService.canceled = true;
                 }
             }
         }
@@ -655,7 +639,6 @@ public class SmsSync extends PreferenceActivity {
     @Override
     protected Dialog onCreateDialog(final int id) {
         String title, msg;
-        Builder builder;
         switch (Dialogs.values()[id]) {
             case MISSING_CREDENTIALS:
                 title = getString(R.string.ui_dialog_missing_credentials_title);
@@ -783,15 +766,15 @@ public class SmsSync extends PreferenceActivity {
             default:
                 return null;
         }
-        return createMessageDialog(id, title, msg);
+        return createMessageDialog(title, msg);
     }
 
-    private Dialog createMessageDialog(final int id, String title, String msg) {
+    private Dialog createMessageDialog(String title, String msg) {
         return new AlertDialog.Builder(this)
           .setTitle(title)
           .setMessage(msg)
           .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-              @Override public void onClick(DialogInterface dialog, int which) {
+              public void onClick(DialogInterface dialog, int which) {
                 dialog.cancel();
               }
           })
@@ -866,13 +849,11 @@ public class SmsSync extends PreferenceActivity {
     class OAuthCallbackTask extends AsyncTask<Intent, Void, XOAuthConsumer> {
         private final Context mContext = SmsSync.this;
 
-        @Override
-        protected void onPreExecute() {
+        @Override protected void onPreExecute() {
             show(Dialogs.ACCESS_TOKEN);
         }
 
-        @Override
-        protected XOAuthConsumer doInBackground(Intent... callbackIntent) {
+        @Override protected XOAuthConsumer doInBackground(Intent... callbackIntent) {
             Uri uri = callbackIntent[0].getData();
             if (LOCAL_LOGV) Log.v(TAG, "oauth callback: " + uri);
 
@@ -899,8 +880,7 @@ public class SmsSync extends PreferenceActivity {
             }
         }
 
-        @Override
-        protected void onPostExecute(XOAuthConsumer consumer) {
+        @Override protected void onPostExecute(XOAuthConsumer consumer) {
             if (LOCAL_LOGV)
               Log.v(TAG, String.format("%s#onPostExecute(%s)", getClass().getName(), consumer));
 
@@ -944,7 +924,7 @@ public class SmsSync extends PreferenceActivity {
 
     private void setPreferenceListeners(final PreferenceManager prefMgr, boolean backup) {
         if (backup) {
-          prefMgr.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(
+          PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(
             new SharedPreferences.OnSharedPreferenceChangeListener() {
               public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
                 BackupManagerWrapper.dataChanged(SmsSync.this);
@@ -1037,7 +1017,7 @@ public class SmsSync extends PreferenceActivity {
                   return true;
               } else {
                   runOnUiThread(new Runnable() {
-                      @Override public void run() {
+                      public void run() {
                           show(Dialogs.INVALID_IMAP_FOLDER);
                       }
                   });
@@ -1056,7 +1036,7 @@ public class SmsSync extends PreferenceActivity {
                 return true;
               } else {
                  runOnUiThread(new Runnable() {
-                      @Override public void run() { show(Dialogs.INVALID_IMAP_FOLDER); }
+                    public void run() { show(Dialogs.INVALID_IMAP_FOLDER); }
                  });
                  return false;
               }
@@ -1067,12 +1047,7 @@ public class SmsSync extends PreferenceActivity {
                .setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
             public boolean onPreferenceChange(Preference preference, final Object newValue) {
               boolean enabled = (Boolean) newValue;
-
-              if (enabled) {
-                  updatePgpEncryptionKeysFromApg();
-              }
-
-              return true;
+              return !enabled || updatePgpEncryptionKeysFromApg();
             }
         });
 

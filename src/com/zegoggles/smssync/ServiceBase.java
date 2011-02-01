@@ -17,7 +17,6 @@ package com.zegoggles.smssync;
 
 import android.app.Service;
 import android.content.Context;
-import android.content.ContentResolver;
 import android.database.Cursor;
 import android.content.Intent;
 import android.net.Uri;
@@ -32,9 +31,7 @@ import android.app.NotificationManager;
 import android.app.Notification;
 import android.app.PendingIntent;
 
-import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
-import com.fsck.k9.mail.AuthenticationFailedException;
 
 import static com.zegoggles.smssync.App.*;
 
@@ -69,8 +66,7 @@ public abstract class ServiceBase extends Service {
      */
     protected WifiManager.WifiLock sWifiLock;
 
-    @Override
-    public IBinder onBind(Intent arg0) {
+    @Override public IBinder onBind(Intent arg0) {
         return null;
     }
 

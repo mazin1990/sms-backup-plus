@@ -16,12 +16,10 @@
 
 package com.zegoggles.smssync;
 
-import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
-import android.os.Process;
 import android.util.Log;
 import android.os.AsyncTask;
 import android.provider.CallLog;
@@ -33,14 +31,11 @@ import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.AuthenticationFailedException;
 import com.zegoggles.smssync.CursorToMessage.ConversionResult;
 import com.zegoggles.smssync.CursorToMessage.DataType;
-import com.zegoggles.smssync.ServiceBase.SmsSyncState;
-import com.zegoggles.smssync.R;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Date;
-import java.io.IOException;
 
 import static com.zegoggles.smssync.ContactAccessor.ContactGroup;
 import static com.zegoggles.smssync.ServiceBase.SmsSyncState.*;
@@ -48,23 +43,16 @@ import static com.zegoggles.smssync.App.*;
 
 public class SmsBackupService extends ServiceBase {
     /** Number of messages sent per sync request. */
-    /** Changing this value will cause mms/sms messages to thread out of order. */
     private static final int MAX_MSG_PER_REQUEST = 1;
 
     /** Flag indicating whether this service is already running. */
-    private static boolean sIsRunning = false;
-
-    /** Number of messages that currently need a sync. */
-    private static int sItemsToSync, sItemsToSyncSms, sItemsToSyncMms, sItemsToSyncCallLog;
+    static boolean isRunning, canceled = false;
 
     /** Number of messages already synced during this cycle.  */
-    private static int sCurrentSyncedItems;
+    static int currentSyncedItems;
 
-    /**
-     * Indicates that the user canceled the current backup and that this service
-     * should finish working ASAP.
-     */
-    private static boolean sCanceled;
+    /** Number of messages that currently need a sync. */
+    static int itemsToSync, itemsToSyncSms, itemsToSyncMms, itemsToSyncCallLog;
 
     private boolean isBackground(final Intent intent) {
       return intent.hasExtra(Consts.KEY_NUM_RETRIES);
@@ -80,8 +68,8 @@ public class SmsBackupService extends ServiceBase {
         } else {
           synchronized(ServiceBase.class) {
             // Only start a sync if there's no other sync / restore going on at this time.
-            if (!sIsRunning && !SmsRestoreService.isWorking()) {
-              sIsRunning = true;
+              if (!isRunning && !SmsRestoreService.isRunning) {
+              isRunning = true;
               new BackupTask().execute(intent);
             }
           }
@@ -96,12 +84,7 @@ public class SmsBackupService extends ServiceBase {
         private final ContactGroup groupToBackup = PrefStore.getBackupContactGroup(context);
         private boolean background;
 
-        @Override
-        protected void onPreExecute () {
-        }
-
-        @Override
-        protected java.lang.Integer doInBackground(Intent... params) {
+        @Override protected java.lang.Integer doInBackground(Intent... params) {
             final Intent intent = params[0];
             this.background = isBackground(intent);
 
@@ -123,19 +106,19 @@ public class SmsBackupService extends ServiceBase {
               callLogItems = getCallLogItemsToSync(maxItemsPerSync - smsCount - mmsCount);
               callLogCount = callLogItems != null ? callLogItems.getCount() : 0;
 
-              sCurrentSyncedItems = 0;
-              sItemsToSyncSms = smsCount;
-              sItemsToSyncMms = mmsCount;
-              sItemsToSyncCallLog = callLogCount;
-              sItemsToSync = sItemsToSyncSms + sItemsToSyncMms + sItemsToSyncCallLog;
+              currentSyncedItems = 0;
+              itemsToSyncSms = smsCount;
+              itemsToSyncMms = mmsCount;
+              itemsToSyncCallLog = callLogCount;
+              itemsToSync = itemsToSyncSms + itemsToSyncMms + itemsToSyncCallLog;
 
               if (LOCAL_LOGV) {
                 Log.v(TAG, String.format("items to backup:  %d SMS, %d MMS, %d calls, %d total",
-                                         sItemsToSyncSms, sItemsToSyncMms, sItemsToSyncCallLog,
-                                         sItemsToSync));
+                        itemsToSyncSms, itemsToSyncMms, itemsToSyncCallLog,
+                        itemsToSync));
               }
 
-              if (sItemsToSync <= 0) {
+              if (itemsToSync <= 0) {
                   if (PrefStore.isFirstSync(context)) {
                       // If this is the first backup we need to write something to PREF_MAX_SYNCED_DATE
                       // such that we know that we've performed a backup before.
@@ -184,23 +167,21 @@ public class SmsBackupService extends ServiceBase {
            }
         }
 
-        @Override
-        protected void onProgressUpdate(SmsSyncState... progress) {
+        @Override protected void onProgressUpdate(SmsSyncState... progress) {
           smsSync.statusPref.stateChanged(progress[0]);
           sState = progress[0];
         }
 
-        @Override
-        protected void onPostExecute(Integer result) {
-           if (sCanceled) {
+        @Override protected void onPostExecute(Integer result) {
+           if (canceled) {
               Log.i(TAG, "backup canceled by user");
               publish(CANCELED_BACKUP);
            } else if (result != null) {
               Log.i(TAG, result + " items backed up");
               publish(FINISHED_BACKUP);
            }
-           sIsRunning = false;
-           sCanceled = false;
+           isRunning = false;
+           canceled = false;
         }
 
       /**
@@ -209,7 +190,7 @@ public class SmsBackupService extends ServiceBase {
        */
       private int backup(Cursor smsItems, Cursor mmsItems, Cursor callLogItems)
         throws MessagingException {
-          Log.i(TAG, String.format("Starting backup (%d messages)", sItemsToSync));
+          Log.i(TAG, String.format("Starting backup (%d messages)", itemsToSync));
           final CursorToMessage converter = new CursorToMessage(context, PrefStore.getUserEmail(context));
 
           publish(LOGIN);
@@ -223,7 +204,7 @@ public class SmsBackupService extends ServiceBase {
            Cursor curCursor = null;
            DataType dataType = null;
            publish(CALC);
-           while (!sCanceled && (sCurrentSyncedItems < sItemsToSync)) {
+           while (!canceled && (currentSyncedItems < itemsToSync)) {
                 if (smsItems != null && smsItems.moveToNext()) {
                   dataType = DataType.SMS;
                   curCursor = smsItems;
@@ -263,14 +244,10 @@ public class SmsBackupService extends ServiceBase {
                   }
                 }
 
-                sCurrentSyncedItems += messages.size();
+                currentSyncedItems += messages.size();
                 publish(BACKUP);
-
-                result = null;
-                messages = null;
             }
-
-            return sCurrentSyncedItems;
+            return currentSyncedItems;
 
           } finally {
               if (smsmmsfolder != null)  smsmmsfolder.close();
@@ -422,43 +399,11 @@ public class SmsBackupService extends ServiceBase {
           updateMaxSyncedDateMms(getMaxItemDateMms());
           updateMaxSyncedDateCallLog(getMaxItemDateCallLog());
 
-          sItemsToSync = sCurrentSyncedItems = 0;
-          sIsRunning = false;
+          itemsToSync = currentSyncedItems = 0;
+          isRunning = false;
           publish(IDLE);
           Log.i(TAG, "All messages skipped.");
           return 0;
       }
-    }
-
-    /**
-     * Cancels the current ongoing backup.
-     */
-    static void cancel() {
-        if (sIsRunning) {
-          sCanceled = true;
-        }
-    }
-
-    /**
-     * Returns whether there is currently a backup going on or not.
-     *
-     */
-    static boolean isWorking() {
-        return sIsRunning;
-    }
-
-    /**
-     * Returns the number of messages that require sync during the current
-     * cycle.
-     */
-    static int getItemsToSyncCount() {
-        return sItemsToSync;
-    }
-
-    /**
-     * Returns the number of already synced messages during the current cycle.
-     */
-    static int getCurrentSyncedItems() {
-        return sCurrentSyncedItems;
     }
 }

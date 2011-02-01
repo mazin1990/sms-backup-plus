@@ -57,4 +57,6 @@ public interface SmsConsts {
      int MESSAGE_TYPE_FAILED = 5; // for failed outgoing messages
 
      int MESSAGE_TYPE_QUEUED = 6; // for messages to send later
+
+     String PGP = "pgp";
 }

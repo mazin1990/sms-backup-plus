@@ -169,7 +169,7 @@
   <string name="error_no_connection">No internet connection</string>
 
   <string name="ui_dialog_ask_pgp_passphrase_title">Passphrase required</string>
-  <string name="ui_dialog_ask_pgp_passphrase_msg">Please enter the passphrase for the private key:</string>
+  <string name="ui_dialog_ask_pgp_passphrase_msg">Please enter the passphrase for the private key: %1$s</string>
   <string name="ui_dialog_ask_pgp_passphrase_last_key_wrong">Wrong key entered.</string>
   <string name="ui_dialog_ask_pgp_passphrase_button_skip_this_key">Skip this key</string>
 

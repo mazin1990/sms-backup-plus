@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2009 Christoph Studer <chstuder@gmail.com>
- * Copyright (c) 2010 Jan Berkel <jan.berkel@gmail.com>
+ * Copyright (c) 2010, 20011 Jan Berkel <jan.berkel@gmail.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,62 +16,53 @@
  */
 package com.zegoggles.smssync;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.Map;
-import java.util.LinkedHashMap;
-import java.util.Random;
-import java.io.BufferedWriter;
-import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.security.MessageDigest;
-
-import android.content.Context;
 import android.content.ContentValues;
-import android.content.Intent;
+import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
 import android.provider.CallLog;
-import android.provider.ContactsContract;
 import android.provider.Contacts.ContactMethods;
 import android.provider.Contacts.People;
 import android.provider.Contacts.Phones;
+import android.provider.ContactsContract;
 import android.provider.ContactsContract.Contacts;
-import android.util.Log;
 import android.text.TextUtils;
-
+import android.util.Log;
 import com.fsck.k9.mail.Address;
 import com.fsck.k9.mail.Body;
 import com.fsck.k9.mail.BodyPart;
 import com.fsck.k9.mail.Flag;
 import com.fsck.k9.mail.Message;
-import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.Message.RecipientType;
+import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.filter.Base64OutputStream;
 import com.fsck.k9.mail.internet.MimeBodyPart;
 import com.fsck.k9.mail.internet.MimeHeader;
 import com.fsck.k9.mail.internet.MimeMessage;
 import com.fsck.k9.mail.internet.MimeMultipart;
 import com.fsck.k9.mail.internet.TextBody;
-import com.fsck.k9.mail.store.LocalStore.LocalAttachmentBody;
-
+import com.zegoggles.smssync.PrefStore.AddressStyle;
 import org.apache.commons.io.IOUtils;
 import org.apache.james.mime4j.codec.EncoderUtil;
-
 import org.thialfihar.android.apg.utils.ApgCon;
 
-import com.zegoggles.smssync.PrefStore.AddressStyle;
-import com.zegoggles.smssync.ContactAccessor.ContactGroup;
-import static com.zegoggles.smssync.App.*;
+import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+import static com.zegoggles.smssync.App.LOCAL_LOGV;
+import static com.zegoggles.smssync.App.TAG;
 
 public class CursorToMessage {
 
@@ -97,11 +88,9 @@ public class CursorToMessage {
 
     private static final String UNKNOWN_NUMBER = "unknown.number";
     private static final String UNKNOWN_EMAIL  = "unknown.email";
-    private static final String UNKNOWN_PERSON = "unknown.person";
 
     private static final int MAX_PEOPLE_CACHE_SIZE = 500;
     private final AddressStyle mStyle;
-
     private final Context mContext;
     private final Address mUserAddress;
     private final ThreadHelper threadHelper = new ThreadHelper();
@@ -116,8 +105,7 @@ public class CursorToMessage {
        };
 
     private String mReferenceValue;
-    private final boolean mMarkAsRead;
-    private final boolean mPrefix;
+    private final boolean mMarkAsRead, mPrefix, mUseEncryption;
 
     private ApgCon mEnc;
 
@@ -149,9 +137,10 @@ public class CursorToMessage {
         mReferenceValue = PrefStore.getReferenceUid(ctx);
         mPrefix         = PrefStore.getMailSubjectPrefix(mContext);
         mStyle          = PrefStore.getEmailAddressStyle(ctx);
+        mUseEncryption  = PrefStore.isEnablePgpEncryption(mContext);
 
         if (mReferenceValue == null) {
-          mReferenceValue = generateReferenceValue(userEmail);
+          mReferenceValue = generateReferenceValue();
           PrefStore.setReferenceUid(ctx, mReferenceValue);
         }
 
@@ -169,11 +158,6 @@ public class CursorToMessage {
                                              DataType dataType) throws MessagingException {
         final String[] columns = cursor.getColumnNames();
         final ConversionResult result = new ConversionResult(dataType);
-
-        /** initialize connection to apg if needed **/
-        if( PrefStore.isEnablePgpEncryption(mContext) && mEnc == null ) {
-            mEnc = new ApgCon(mContext);
-        }
 
         do {
             final long date = cursor.getLong(cursor.getColumnIndex(SmsConsts.DATE));
@@ -197,12 +181,9 @@ public class CursorToMessage {
             }
         } while (result.messageList.size() < maxEntries && cursor.moveToNext());
 
-        /** disconnect to save ressources */
-        if( mEnc != null ) {
-            mEnc.disconnect();
-        }
 
-       return result;
+        if(mEnc != null) mEnc.disconnect(); // to save resources
+        return result;
     }
 
     public ContentValues messageToContentValues(final Message message)
@@ -230,7 +211,7 @@ public class CursorToMessage {
             values.put(SmsConsts.THREAD_ID, threadHelper.getThreadId(mContext, address));
             values.put(SmsConsts.READ,
               PrefStore.getMarkAsReadOnRestore(mContext) ? "1" : getHeader(message, Headers.READ));
-            values.put("pgp", getHeader(message, Headers.PGP_KEY));
+            values.put(SmsConsts.PGP, getHeader(message, Headers.PGP_KEY));
 
             break;
           case CALLLOG:
@@ -238,12 +219,11 @@ public class CursorToMessage {
             values.put(CallLog.Calls.TYPE, Integer.valueOf(getHeader(message, Headers.TYPE)));
             values.put(CallLog.Calls.DATE, getHeader(message, Headers.DATE));
             values.put(CallLog.Calls.DURATION, Long.valueOf(getHeader(message, Headers.DURATION)));
-            values.put(CallLog.Calls.NEW, Integer.valueOf(0));
+            values.put(CallLog.Calls.NEW, 0);
 
             PersonRecord record = lookupPerson(getHeader(message, Headers.ADDRESS));
             if (!record.unknown) {
               values.put(CallLog.Calls.CACHED_NAME, record.name);
-              values.put(CallLog.Calls.CACHED_NUMBER_TYPE, -2);
             }
 
             break;
@@ -334,28 +314,11 @@ public class CursorToMessage {
         final Message msg = new MimeMessage();
         msg.setSubject(getSubject(DataType.SMS, record));
 
-        String body_text = msgMap.get(SmsConsts.BODY);
-        if( PrefStore.isEnablePgpEncryption(mContext) ) {
-            Log.v( TAG, "Trying to encrypt body" );
+        String bodyText = msgMap.get(SmsConsts.BODY);
 
-            mEnc.reset();
-            mEnc.set_arg("MESSAGE", body_text);
-            mEnc.set_arg("ARMORED_OUTPUT", true );
-            mEnc.set_arg("PUBLIC_KEYS", new String[] { PrefStore.getPgpEncryptionKey(mContext) });
-            boolean success = mEnc.call( "encrypt_with_public_key" );
-            while( mEnc.has_next_warning() ) {
-                Log.w( TAG, "Warning: "+mEnc.get_next_warning() );
-            }
-            if( !success ) {
-                Log.e( TAG, "encryption returned error: " );
-                while( mEnc.has_next_error() ) {
-                    Log.e( TAG, mEnc.get_next_error() );
-                }
-                throw new MessagingException("could not encrypt body");
-            }
-            body_text = mEnc.get_result();
-        }
-        msg.setBody(new TextBody(body_text));
+        if(mUseEncryption) bodyText = encrypt(bodyText);
+
+        msg.setBody(new TextBody(bodyText));
 
         final int messageType = Integer.valueOf(msgMap.get(SmsConsts.TYPE));
         if (SmsConsts.MESSAGE_TYPE_INBOX == messageType) {
@@ -394,10 +357,34 @@ public class CursorToMessage {
         msg.setHeader(Headers.VERSION, PrefStore.getVersion(mContext, true));
         msg.setFlag(Flag.SEEN, mMarkAsRead);
 
-        if( PrefStore.isEnablePgpEncryption(mContext) )
-            msg.setHeader(Headers.PGP_KEY, PrefStore.getPgpEncryptionKey(mContext) );
+        if(mUseEncryption) {
+            msg.setHeader(Headers.PGP_KEY, PrefStore.getPgpEncryptionKey(mContext));
+        }
 
         return msg;
+    }
+
+    private String encrypt(String bodyText) throws MessagingException {
+        if (LOCAL_LOGV) Log.v(TAG, "Trying to encrypt body");
+
+        /** initialize connection to apg if needed **/
+        if (mEnc == null) mEnc = new ApgCon(mContext);
+
+        mEnc.reset();
+        mEnc.set_arg("MESSAGE", bodyText);
+        mEnc.set_arg("ARMORED_OUTPUT", true );
+        mEnc.set_arg("PUBLIC_KEYS", new String[] { PrefStore.getPgpEncryptionKey(mContext) });
+        boolean success = mEnc.call( "encrypt_with_public_key" );
+        while(mEnc.has_next_warning()) Log.w( TAG, "Warning: "+mEnc.get_next_warning());
+
+        if (!success) {
+            Log.e(TAG, "encryption returned error: ");
+            while (mEnc.has_next_error()) Log.e( TAG, mEnc.get_next_error() );
+
+            throw new MessagingException("could not encrypt body");
+        } else {
+            return mEnc.get_result();
+        }
     }
 
     private Message messageFromMapCallLog(Map<String, String> msgMap) throws MessagingException {
@@ -625,10 +612,7 @@ public class CursorToMessage {
         return parts;
     }
 
-    /**
-      * Create a message-id based on message date, phone number and message
-      * type.
-      */
+    // Create a message-id based on message date, phone number and message
     private String createMessageId(Date sent, String address, int type) {
       try {
         final MessageDigest digest = java.security.MessageDigest.getInstance("MD5");
@@ -654,7 +638,7 @@ public class CursorToMessage {
             if (hdrs != null && hdrs.length > 0) {
                 return hdrs[0];
             }
-        } catch (MessagingException e) {
+        } catch (MessagingException ignored) {
         }
         return null;
     }
@@ -719,15 +703,14 @@ public class CursorToMessage {
       return encodeLocal(no.trim()) + "@" + UNKNOWN_EMAIL;
     }
 
-    /** Returns whether the given e-mail address is a Gmail address or not. */
+    // Returns whether the given e-mail address is a Gmail address or not.
     private static boolean isGmailAddress(String email) {
         if (email == null) return false;
         return email.toLowerCase().endsWith("gmail.com") ||
                email.toLowerCase().endsWith("googlemail.com");
     }
 
-
-    private static String generateReferenceValue(String email) {
+    private static String generateReferenceValue() {
       final StringBuilder sb = new StringBuilder();
       final Random random = new Random();
       for (int i = 0; i < 24; i++) {
@@ -819,10 +802,6 @@ public class CursorToMessage {
             Base64OutputStream base64Out = new Base64OutputStream(out);
             IOUtils.copy(in, base64Out);
             base64Out.close();
-        }
-
-        public Uri getContentUri() {
-            return mUri;
         }
     }
 }

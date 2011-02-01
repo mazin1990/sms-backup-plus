@@ -18,6 +18,8 @@ package com.zegoggles.smssync;
 
 import java.net.URLEncoder;
 
+import android.content.pm.PackageInfo;
+import android.text.TextUtils;
 import android.util.Log;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -140,9 +142,6 @@ public class PrefStore {
     /** Default value for {@link PrefStore#PREF_REGULAR_TIMEOUT_SECONDS}. */
     static final int DEFAULT_REGULAR_TIMEOUT_SECONDS = 2 * 60 * 60; // 2h
 
-    /** Default value for {@link #PREF_LAST_SYNC}. */
-    static final long DEFAULT_LAST_SYNC = -1;
-
     /** Default value for {@link #PREF_MAX_ITEMS_PER_SYNC}. */
     static final int DEFAULT_MAX_ITEMS_PER_SYNC = -1;
 
@@ -196,10 +195,6 @@ public class PrefStore {
         return getSharedPreferences(ctx).getLong(PREF_MAX_SYNCED_DATE_CALLLOG, DEFAULT_MAX_SYNCED_DATE);
     }
 
-    static boolean isMaxSyncedDateSet(Context ctx) {
-        return getSharedPreferences(ctx).contains(PREF_MAX_SYNCED_DATE_SMS);
-    }
-
     static void setMaxSyncedDateSms(Context ctx, long maxSyncedDate) {
         getSharedPreferences(ctx).edit()
           .putLong(PREF_MAX_SYNCED_DATE_SMS, maxSyncedDate)
@@ -219,10 +214,6 @@ public class PrefStore {
     }
     static String getImapUsername(Context ctx) {
         return getSharedPreferences(ctx).getString(PREF_LOGIN_USER, null);
-    }
-
-    static void setImapUsername(Context ctx, String s) {
-        getSharedPreferences(ctx).edit().putString(PREF_LOGIN_USER, s).commit();
     }
 
     static String getImapPassword(Context ctx) {
@@ -302,8 +293,7 @@ public class PrefStore {
 
     static boolean isMmsBackupEnabled(Context ctx) {
        final int version = Integer.parseInt(android.os.Build.VERSION.SDK);
-       return version < SmsSync.MIN_VERSION_MMS ? false :
-              getSharedPreferences(ctx).getBoolean(PREF_BACKUP_MMS, false);
+       return version >= SmsSync.MIN_VERSION_MMS && getSharedPreferences(ctx).getBoolean(PREF_BACKUP_MMS, false);
     }
 
     static boolean isCallLogBackupEnabled(Context ctx) {
@@ -354,10 +344,6 @@ public class PrefStore {
         return getSharedPreferences(ctx).getBoolean(PREF_RESTORE_SMS, true);
     }
 
-    static boolean isRestoreMms(Context ctx) {
-        return getSharedPreferences(ctx).getBoolean(PREF_RESTORE_MMS, false);
-    }
-
     static boolean isRestoreCallLog(Context ctx) {
         return getSharedPreferences(ctx).getBoolean(PREF_RESTORE_CALLLOG, true);
     }
@@ -382,14 +368,6 @@ public class PrefStore {
 
     static boolean getMailSubjectPrefix(Context ctx) {
         return getSharedPreferences(ctx).getBoolean(PREF_MAIL_SUBJECT_PREFIX, DEFAULT_MAIL_SUBJECT_PREFIX);
-    }
-
-    static boolean isImapFolderSet(Context ctx) {
-        return getSharedPreferences(ctx).contains(PREF_IMAP_FOLDER);
-    }
-
-    static boolean isCallLogFolderSet(Context ctx) {
-        return getSharedPreferences(ctx).contains(PREF_IMAP_FOLDER_CALLLOG);
     }
 
     static int getMaxItemsPerSync(Context ctx) {
@@ -427,32 +405,13 @@ public class PrefStore {
      * Returns whether an IMAP folder is valid.
      */
     static boolean isValidImapFolder(String imapFolder) {
-      if (imapFolder == null || imapFolder.length() == 0) return false;
-      if (imapFolder.charAt(0) == ' ' || imapFolder.charAt(imapFolder.length() - 1) == ' ')
-          return false;
-
-       return true;
-    }
-
-    static void setImapFolder(Context ctx, String imapFolder) {
-        getSharedPreferences(ctx).edit()
-          .putString(PREF_IMAP_FOLDER, imapFolder)
-          .commit();
+        return !TextUtils.isEmpty(imapFolder) &&
+               !(imapFolder.charAt(0) == ' ' || imapFolder.charAt(imapFolder.length() - 1) == ' ');
     }
 
     static boolean isEnableAutoSync(Context ctx) {
         return getSharedPreferences(ctx).getBoolean(PREF_ENABLE_AUTO_SYNC,
                 DEFAULT_ENABLE_AUTO_SYNC);
-    }
-
-    static boolean isEnableAutoSyncSet(Context ctx) {
-        return getSharedPreferences(ctx).contains(PREF_ENABLE_AUTO_SYNC);
-    }
-
-    static void setEnableAutoSync(Context ctx, boolean enableAutoSync) {
-        getSharedPreferences(ctx).edit()
-          .putBoolean(PREF_ENABLE_AUTO_SYNC, enableAutoSync)
-          .commit();
     }
 
     static int getIncomingTimeoutSecs(Context ctx) {
@@ -467,20 +426,8 @@ public class PrefStore {
         return getSharedPreferences(ctx).getBoolean(PREF_MARK_AS_READ, DEFAULT_MARK_AS_READ);
     }
 
-    static void setMarkAsRead(Context ctx, boolean markAsRead) {
-        getSharedPreferences(ctx).edit()
-          .putBoolean(PREF_MARK_AS_READ, markAsRead)
-          .commit();
-    }
-
     static boolean getMarkAsReadOnRestore(Context ctx) {
         return getSharedPreferences(ctx).getBoolean(PREF_MARK_AS_READ_ON_RESTORE, DEFAULT_MARK_AS_READ_ON_RESTORE);
-    }
-
-    static void setMarkAsReadOnRestore(Context ctx, boolean markAsRead) {
-        getSharedPreferences(ctx).edit()
-          .putBoolean(PREF_MARK_AS_READ_ON_RESTORE, markAsRead)
-          .commit();
     }
 
     static boolean isFirstSync(Context ctx) {
@@ -526,13 +473,7 @@ public class PrefStore {
         return getSharedPreferences(ctx).getString(PREF_SERVER_ADDRESS, DEFAULT_SERVER_ADDRESS);
     }
 
-    static void setServerAddress(Context ctx, String serverAddress) {
-         getSharedPreferences(ctx).edit()
-           .putString(PREF_SERVER_ADDRESS, serverAddress)
-           .commit();
-     }
-
-     static String getServerProtocol(Context ctx) {
+    static String getServerProtocol(Context ctx) {
         return getSharedPreferences(ctx).getString(PREF_SERVER_PROTOCOL, DEFAULT_SERVER_PROTOCOL);
     }
 
@@ -540,28 +481,8 @@ public class PrefStore {
         return getSharedPreferences(ctx).getBoolean(PREF_ENABLE_PGP_ENCRYPTION, DEFAULT_ENABLE_PGP_ENCRYPTION);
     }
 
-    static boolean isEnablePgpEncryptionSet(Context ctx) {
-        return getSharedPreferences(ctx).contains(PREF_ENABLE_PGP_ENCRYPTION);
-    }
-
-    static void setEnablePgpEncryption(Context ctx, boolean enablePgpEnc) {
-        getSharedPreferences(ctx).edit()
-            .putBoolean(PREF_ENABLE_PGP_ENCRYPTION, enablePgpEnc)
-            .commit();
-    }
-
-    static boolean isPgpEncryptionKeySet(Context ctx) {
-        return getSharedPreferences(ctx).contains(PREF_PGP_ENCRYPTION_KEY);
-    }
-
     static String getPgpEncryptionKey(Context ctx) {
         return getSharedPreferences(ctx).getString(PREF_PGP_ENCRYPTION_KEY, null);
-    }
-
-    static void setPgpEncryptionKey(Context ctx, String pgpEncryptionKey) {
-        getSharedPreferences(ctx).edit()
-            .putString(PREF_PGP_ENCRYPTION_KEY, pgpEncryptionKey)
-            .commit();
     }
 
     static boolean isGmail(Context ctx) {
@@ -591,7 +512,7 @@ public class PrefStore {
     }
 
     static String getVersion(Context context, boolean code) {
-      android.content.pm.PackageInfo pInfo = null;
+      PackageInfo pInfo;
       try {
         pInfo = context.getPackageManager().getPackageInfo(
                 SmsSync.class.getPackage().getName(),
@@ -604,7 +525,7 @@ public class PrefStore {
     }
 
     static boolean isInstalledOnSDCard(Context context) {
-      android.content.pm.PackageInfo pInfo = null;
+      PackageInfo pInfo;
       try {
         pInfo = context.getPackageManager().getPackageInfo(
                 SmsSync.class.getPackage().getName(),
