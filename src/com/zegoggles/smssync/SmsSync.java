@@ -97,9 +97,7 @@ public class SmsSync extends PreferenceActivity {
       CONNECT,
       CONNECT_TOKEN_ERROR,
       UPGRADE,
-      BROKEN_DROIDX,
-      ASK_PGP_PASSPHRASE,
-      PRIVATE_KEY_MISSING
+      BROKEN_DROIDX
     }
 
     StatusPreference statusPref;
@@ -782,76 +780,10 @@ public class SmsSync extends PreferenceActivity {
                 title = getString(R.string.ui_dialog_brokendroidx_title);
                 msg   = getString(R.string.ui_dialog_brokendroidx_msg);
                 break;
-            case ASK_PGP_PASSPHRASE:
-
-                AlertDialog.Builder alert = new AlertDialog.Builder(this);                 
-
-                alert.setTitle(getString(R.string.ui_dialog_ask_pgp_passphrase_title));
-                alert.setMessage(""); // or else we cannot change it in onPrepareListener()
-
-                final android.widget.EditText input = new android.widget.EditText(this); 
-                input.setTransformationMethod( new android.text.method.PasswordTransformationMethod() );
-                alert.setView(input);
-
-                alert.setPositiveButton(getString(android.R.string.ok), new DialogInterface.OnClickListener() {  
-                    public void onClick(DialogInterface dialog, int whichButton) {  
-                        String value = input.getText().toString();
-                        SmsRestoreService.putPgpPassphrase( value );
-                        return;
-                    }  
-                });  
-
-                alert.setNegativeButton(getString(android.R.string.cancel), new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        SmsRestoreService.cancel();
-                        return;
-                    }
-                });
-
-                alert.setNeutralButton(getString(R.string.ui_dialog_ask_pgp_passphrase_button_skip_this_key), new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        SmsRestoreService.skipCurrentPgpKey();
-                        return;
-                    }
-                });
-
-                AlertDialog diag = alert.create();
-                diag.setOnDismissListener( new DialogInterface.OnDismissListener() {
-                    public void onDismiss(DialogInterface dialog) {
-                        SmsRestoreService.setWaitForPgpPassphrase( false );
-                    }
-                });
-
-                return diag;
-            case PRIVATE_KEY_MISSING:
-                title = getString(R.string.ui_dialog_private_key_missing_title);
-                msg = getString(R.string.ui_dialog_private_key_missing_msg);
-                Dialog dia = createMessageDialog(id, title, msg);
-                dia.setOnDismissListener( new DialogInterface.OnDismissListener() {
-                    public void onDismiss(DialogInterface dialog) {
-                        SmsRestoreService.goOn();
-                    }
-                });
-                return dia;
             default:
                 return null;
         }
         return createMessageDialog(id, title, msg);
-    }
-
-    @Override
-    protected void onPrepareDialog( int id, Dialog dialog, Bundle args ) {
-        Log.v(TAG, "got "+Dialogs.values()[id]);
-        switch (Dialogs.values()[id]) {
-            case ASK_PGP_PASSPHRASE:
-                String defaultMsg = getString(R.string.ui_dialog_ask_pgp_passphrase_msg)+" "+args.getString("key");
-                if( args.getBoolean("last_key_was_wrong") ) {
-                    ((AlertDialog)dialog).setMessage(defaultMsg+ "\n\n"+getString(R.string.ui_dialog_ask_pgp_passphrase_last_key_wrong));
-                } else {
-                    ((AlertDialog)dialog).setMessage(defaultMsg);
-                }
-                break;
-        }
     }
 
     private Dialog createMessageDialog(final int id, String title, String msg) {
